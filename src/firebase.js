@@ -1,18 +1,22 @@
-import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-// Colle ici l'objet de configuration fourni par Firebase
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "VOTRE_API_KEY",
-  authDomain: "votre-projet.firebaseapp.com",
-  projectId: "votre-projet",
-  storageBucket: "votre-projet.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "VOTRE_APP_ID"
+  apiKey: "AIzaSyCs1kSas2vIL_JJauHFwmxEz0KFS2RcXMs",
+  authDomain: "jdr-manager-bdd.firebaseapp.com",
+  projectId: "jdr-manager-bdd",
+  storageBucket: "jdr-manager-bdd.firebasestorage.app",
+  messagingSenderId: "657303670946",
+  appId: "1:657303670946:web:249edb4e717f203734c7fb"
 };
 
-// Initialisation
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 // Export des outils pour les utiliser dans tes composants React

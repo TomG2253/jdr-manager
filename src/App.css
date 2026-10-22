@@ -182,3 +182,51 @@
     border-right-color: var(--border);
   }
 }
+/* --- Jauge de Compétence Personnalisée --- */
+.skill-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  outline: none;
+  background-color: var(--border); /* Sera écrasé par le gradient en ligne */
+}
+
+/* Le gros bouton (Thumb) pour Chrome/Safari/Edge */
+.skill-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--text);
+  cursor: grab;
+  box-shadow: var(--shadow);
+  transition: transform 0.1s;
+}
+
+.skill-slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  transform: scale(1.15);
+  border-color: var(--accent);
+}
+
+/* Le gros bouton (Thumb) pour Firefox */
+.skill-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--text);
+  cursor: grab;
+  box-shadow: var(--shadow);
+  transition: transform 0.1s;
+}
+
+.skill-slider:active::-moz-range-thumb {
+  cursor: grabbing;
+  transform: scale(1.15);
+  border-color: var(--accent);
+}

@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
-export default function LiveResourceBar({ characterId, resourceKey, currentVal, maxVal, color, isEditable }) {
+export default function LiveResourceBar({ characterId, resourceKey, currentVal, maxVal, color, isEditable, onUpdate }) {
   const [modifierValue, setModifierValue] = useState('');
 
-  // Sécurité pour éviter les barres qui dépassent visuellement 100% ou descendent sous 0%
   const percentage = Math.max(0, Math.min(100, (currentVal / maxVal) * 100));
 
   const applyModifier = async (e) => {
@@ -13,17 +12,18 @@ export default function LiveResourceBar({ characterId, resourceKey, currentVal, 
       const modifier = parseInt(modifierValue, 10);
       
       if (!isNaN(modifier)) {
-        // Soustraction : un nombre positif fait des dégâts, un négatif soigne
         const newValue = Math.max(0, Math.min(maxVal, currentVal - modifier));
-        setModifierValue(''); // On vide l'input
+        setModifierValue(''); 
         
-        // Si c'est un faux personnage de test, on ne contacte pas Firebase
-        if (characterId === 'test-id') {
-          alert(`Test UI : La valeur passerait à ${newValue}`);
-          return;
+        // Met à jour l'interface instantanément
+        if (onUpdate) {
+          onUpdate(resourceKey, newValue);
         }
 
-        // Mise à jour temps réel dans Firestore
+        // Si c'est le personnage de test, on s'arrête ici
+        if (characterId === 'test-id') return;
+
+        // Sinon, on sauvegarde silencieusement sur Firebase
         try {
           const charRef = doc(db, "characters", characterId);
           await updateDoc(charRef, {
@@ -39,23 +39,20 @@ export default function LiveResourceBar({ characterId, resourceKey, currentVal, 
   return (
     <div style={{ marginBottom: '16px' }}>
       
-      {/* Conteneur de la barre */}
       <div style={{ width: '100%', backgroundColor: 'var(--code-bg)', height: '24px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border)' }}>
         <div style={{ 
           width: `${percentage}%`, 
           backgroundColor: color, 
           height: '100%', 
-          transition: 'width 0.4s ease-out' 
+          transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
         }}></div>
       </div>
       
-      {/* Informations sous la barre */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', alignItems: 'center' }}>
         <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--text-h)' }}>
           {currentVal} / {maxVal}
         </span>
         
-        {/* Le champ n'apparaît que si l'utilisateur a le droit d'édition */}
         {isEditable && (
           <input 
             type="number" 

@@ -1,78 +1,95 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
-export default function LiveResourceBar({ characterId, resourceKey, currentVal, maxVal, color, isEditable, onUpdate }) {
-  const [modifierValue, setModifierValue] = useState('');
+export default function LiveResourceBar({ characterId, resourceKey, currentVal, maxVal, color, isEditable, isMJ, onUpdate }) {
+  const [editingMax, setEditingMax] = useState(false);
+  const [newMaxVal, setNewMaxVal] = useState(maxVal);
+
+  useEffect(() => {
+    setNewMaxVal(maxVal);
+  }, [maxVal]);
 
   const percentage = Math.max(0, Math.min(100, (currentVal / maxVal) * 100));
 
-  const applyModifier = async (e) => {
-    if (e.key === 'Enter' && modifierValue !== '' && isEditable) {
-      const modifier = parseInt(modifierValue, 10);
-      
-      if (!isNaN(modifier)) {
-        const newValue = Math.max(0, Math.min(maxVal, currentVal - modifier));
-        setModifierValue(''); 
-        
-        // Met à jour l'interface instantanément
-        if (onUpdate) {
-          onUpdate(resourceKey, newValue);
-        }
+  const handleApplyDelta = async (delta) => {
+    if (!isEditable || !characterId) return;
+    const updatedCurrent = Math.max(0, Math.min(maxVal, currentVal + delta));
+    onUpdate(resourceKey, updatedCurrent);
 
-        // Si c'est le personnage de test, on s'arrête ici
-        if (characterId === 'test-id') return;
+    try {
+      const charRef = doc(db, "characters", characterId);
+      await updateDoc(charRef, {
+        [`liveStats.${resourceKey}Current`]: updatedCurrent
+      });
+    } catch (err) {
+      console.error("Erreur mise à jour stat :", err);
+    }
+  };
 
-        // Sinon, on sauvegarde silencieusement sur Firebase
-        try {
-          const charRef = doc(db, "characters", characterId);
-          await updateDoc(charRef, {
-            [`liveStats.${resourceKey}Current`]: newValue
-          });
-        } catch (error) {
-          console.error("Erreur de mise à jour :", error);
-        }
-      }
+  const handleSaveMax = async () => {
+    if (!characterId) return;
+    const safeMax = Math.max(1, parseInt(newMaxVal, 10) || 1);
+    const safeCurrent = Math.min(currentVal, safeMax);
+
+    try {
+      const charRef = doc(db, "characters", characterId);
+      await updateDoc(charRef, {
+        [`liveStats.${resourceKey}Max`]: safeMax,
+        [`liveStats.${resourceKey}Current`]: safeCurrent
+      });
+      setEditingMax(false);
+    } catch (err) {
+      console.error("Erreur modification max :", err);
     }
   };
 
   return (
-    <div style={{ marginBottom: '16px' }}>
-      
-      <div style={{ width: '100%', backgroundColor: 'var(--code-bg)', height: '24px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-        <div style={{ 
-          width: `${percentage}%`, 
-          backgroundColor: color, 
-          height: '100%', 
-          transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
-        }}></div>
-      </div>
-      
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', alignItems: 'center' }}>
-        <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--text-h)' }}>
-          {currentVal} / {maxVal}
-        </span>
+    <div style={{ marginBottom: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '13px' }}>
+        <strong style={{ color: 'var(--text-h)', textTransform: 'uppercase' }}>{resourceKey}</strong>
         
-        {isEditable && (
-          <input 
-            type="number" 
-            value={modifierValue}
-            onChange={(e) => setModifierValue(e.target.value)}
-            onKeyDown={applyModifier}
-            placeholder="Dégâts..."
-            style={{ 
-              width: '80px', 
-              padding: '4px 8px', 
-              fontSize: '14px', 
-              borderRadius: '4px',
-              border: '1px solid var(--border)',
-              background: 'var(--bg)',
-              color: 'var(--text-h)'
-            }}
-          />
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ fontWeight: 'bold', color: 'var(--text-h)' }}>{currentVal}</span>
+          <span>/</span>
+          
+          {/* Édition du Max réservée au MJ */}
+          {isMJ && editingMax ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <input 
+                type="number" 
+                value={newMaxVal} 
+                onChange={(e) => setNewMaxVal(e.target.value)}
+                style={{ width: '45px', padding: '1px 4px', fontSize: '12px', borderRadius: '3px', border: '1px solid var(--border)', background: 'var(--code-bg)', color: 'var(--text-h)' }}
+              />
+              <button onClick={handleSaveMax} style={{ background: 'none', border: 'none', color: '#48bb78', cursor: 'pointer', fontSize: '12px', padding: 0 }}>✔</button>
+            </div>
+          ) : (
+            <span 
+              onClick={() => isMJ && setEditingMax(true)} 
+              title={isMJ ? "Cliquer pour modifier la valeur max" : undefined}
+              style={{ fontWeight: 'bold', color: 'var(--text)', cursor: isMJ ? 'pointer' : 'default', textDecoration: isMJ ? 'underline dotted' : 'none' }}
+            >
+              {maxVal}
+            </span>
+          )}
+        </div>
       </div>
 
+      {/* Barre de progression */}
+      <div style={{ height: '10px', background: 'var(--code-bg)', borderRadius: '5px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+        <div style={{ width: `${percentage}%`, height: '100%', background: color, transition: 'width 0.3s ease' }} />
+      </div>
+
+      {/* Boutons d'ajustement rapide */}
+      {isEditable && (
+        <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+          <button onClick={() => handleApplyDelta(-10)} className="btn-secondary" style={{ padding: '1px 6px', fontSize: '10px' }}>-10</button>
+          <button onClick={() => handleApplyDelta(-1)} className="btn-secondary" style={{ padding: '1px 6px', fontSize: '10px' }}>-1</button>
+          <button onClick={() => handleApplyDelta(1)} className="btn-secondary" style={{ padding: '1px 6px', fontSize: '10px' }}>+1</button>
+          <button onClick={() => handleApplyDelta(10)} className="btn-secondary" style={{ padding: '1px 6px', fontSize: '10px' }}>+10</button>
+        </div>
+      )}
     </div>
   );
 }

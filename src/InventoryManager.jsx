@@ -3,6 +3,38 @@ import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { ITEM_PRESETS } from './ItemBank';
 
+// Calcule les bordures et arrondis spécifiques à chaque case d'un objet
+function getItemCellStyles(item, currentSlotIndex, gridW) {
+  const startSlot = item.slotIndex ?? 0;
+  const startX = startSlot % gridW;
+  const startY = Math.floor(startSlot / gridW);
+
+  const effW = item.isRotated ? item.height : item.width;
+  const effH = item.isRotated ? item.width : item.height;
+
+  const currentX = currentSlotIndex % gridW;
+  const currentY = Math.floor(currentSlotIndex / gridW);
+
+  const isTopOuter = currentY === startY;
+  const isBottomOuter = currentY === startY + effH - 1;
+  const isLeftOuter = currentX === startX;
+  const isRightOuter = currentX === startX + effW - 1;
+
+  const solidBorder = '1px solid var(--accent)';
+  const dashedBorder = '1px dashed var(--accent-border)';
+
+  return {
+    borderTop: isTopOuter ? solidBorder : dashedBorder,
+    borderBottom: isBottomOuter ? solidBorder : dashedBorder,
+    borderLeft: isLeftOuter ? solidBorder : dashedBorder,
+    borderRight: isRightOuter ? solidBorder : dashedBorder,
+    borderTopLeftRadius: (isTopOuter && isLeftOuter) ? '6px' : '0px',
+    borderTopRightRadius: (isTopOuter && isRightOuter) ? '6px' : '0px',
+    borderBottomLeftRadius: (isBottomOuter && isLeftOuter) ? '6px' : '0px',
+    borderBottomRightRadius: (isBottomOuter && isRightOuter) ? '6px' : '0px',
+  };
+}
+
 export default function InventoryManager({ 
   characterId, 
   mjUid, 
@@ -39,6 +71,7 @@ export default function InventoryManager({
 
   const handleRotateItem = (itemToRotate) => {
     if (!isEditable) return;
+    setHoveredItem(null);
 
     const currentRotated = !!itemToRotate.isRotated;
     const newRotated = !currentRotated;
@@ -50,17 +83,15 @@ export default function InventoryManager({
     const startX = startSlot % inventoryWidth;
     const startY = Math.floor(startSlot / inventoryWidth);
 
-    // Vérifie si la rotation rentre dans la grille
     if (startX + effW > inventoryWidth || startY + effH > inventoryHeight) {
-      return; // Ne pivote pas si ça déborde du sac
+      return; 
     }
 
-    // Vérifie si la rotation ne percute pas un autre objet
     const occupied = getOccupiedSlotsSet(items.filter(i => i.id !== itemToRotate.id), inventoryWidth);
     for (let dy = 0; dy < effH; dy++) {
       for (let dx = 0; dx < effW; dx++) {
         const checkSlot = (startY + dy) * inventoryWidth + (startX + dx);
-        if (occupied.has(checkSlot)) return; // Collision
+        if (occupied.has(checkSlot)) return; 
       }
     }
 
@@ -68,23 +99,29 @@ export default function InventoryManager({
     saveInventory(updatedInv);
   };
 
-  const handleRemoveToBank = async (itemToRemove) => {
+  const handleRemoveItem = async (itemToRemove) => {
     if (!mjUid) return;
+    setHoveredItem(null);
 
-    const updatedInv = items.filter(i => i.id !== itemToRemove.id);
-    await saveInventory(updatedInv);
+    try {
+      const updatedInv = items.filter(i => i.id !== itemToRemove.id);
+      await saveInventory(updatedInv);
 
-    const bankRef = doc(db, "itemBanks", mjUid);
-    const bankSnap = await getDoc(bankRef);
-    const currentBank = bankSnap.exists() ? (bankSnap.data().items || []) : [];
+      const bankRef = doc(db, "itemBanks", mjUid);
+      const bankSnap = await getDoc(bankRef);
+      const currentBank = bankSnap.exists() ? (bankSnap.data().items || []) : [];
 
-    const { slotIndex, isRotated, ...cleanItem } = itemToRemove;
-    await setDoc(bankRef, { items: [...currentBank, cleanItem] }, { merge: true });
+      const { slotIndex, isRotated, ...cleanItem } = itemToRemove;
+      await setDoc(bankRef, { items: [...currentBank, cleanItem] }, { merge: true });
+    } catch (error) {
+      console.error("Erreur lors du retour en banque :", error);
+    }
   };
 
   const handleSaveItemEdit = async (e) => {
     e.preventDefault();
     if (!editingItem) return;
+    setHoveredItem(null);
 
     const updatedInv = items.map(i => i.id === editingItem.id ? editingItem : i);
     await saveInventory(updatedInv);
@@ -92,6 +129,7 @@ export default function InventoryManager({
   };
 
   const handleDragStart = (e, item) => {
+    setHoveredItem(null);
     setDraggedItemId(item.id);
     e.dataTransfer.effectAllowed = "move";
   };
@@ -100,6 +138,7 @@ export default function InventoryManager({
 
   const handleDropOnSlot = (e, targetSlot) => {
     e.preventDefault();
+    setHoveredItem(null);
     if (!draggedItemId || !isEditable) return;
 
     const draggedItem = items.find(i => i.id === draggedItemId);
@@ -126,9 +165,8 @@ export default function InventoryManager({
     setDraggedItemId(null);
   };
 
-  // Cartographie des cases du sac
   const totalSlots = inventoryWidth * inventoryHeight;
-  const slotOccupancy = {}; // slotIndex -> { type: 'origin' | 'extension', item }
+  const slotOccupancy = {}; 
 
   items.forEach(item => {
     const startSlot = item.slotIndex ?? 0;
@@ -154,7 +192,6 @@ export default function InventoryManager({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <h4 style={{ margin: 0, color: 'var(--text-h)', fontSize: '16px' }}>🎒 Sac à Dos & Équipement</h4>
 
-        {/* Réglage des dimensions de la grille par le MJ */}
         {isMJ && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
             <span style={{ color: 'var(--text)' }}>Grille (L×H) :</span>
@@ -173,7 +210,6 @@ export default function InventoryManager({
         )}
       </div>
 
-      {/* FORMULAIRE D'ÉDITION OBJET EN INVENTAIRE (MJ) */}
       {isMJ && editingItem && (
         <form onSubmit={handleSaveItemEdit} style={{ padding: '12px', background: 'var(--code-bg)', border: '1px solid var(--accent)', borderRadius: '8px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <strong style={{ fontSize: '12px', color: 'var(--accent)' }}>Éditer l'objet : {editingItem.name}</strong>
@@ -221,35 +257,36 @@ export default function InventoryManager({
         {Array.from({ length: totalSlots }).map((_, slotIdx) => {
           const occ = slotOccupancy[slotIdx];
 
-          // 1. Case ORIGINE de l'objet (Contient l'image 1x1 + contrôles)
-          if (occ?.type === 'origin') {
+          if (occ?.type === 'origin' || occ?.type === 'extension') {
             const item = occ.item;
+            const isOrigin = occ.type === 'origin';
+            const cellStyles = getItemCellStyles(item, slotIdx, inventoryWidth);
+
             return (
               <div 
                 key={slotIdx}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDropOnSlot(e, slotIdx)}
+                onMouseEnter={() => setHoveredItem(item)}
+                onMouseLeave={() => setHoveredItem(null)}
+                onMouseMove={(e) => setTooltipPos({ x: e.clientX + 12, y: e.clientY + 12 })}
                 style={{
                   width: '64px',
                   height: '64px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--accent)',
-                  backgroundColor: 'rgba(49, 130, 206, 0.15)',
-                  backgroundImage: `url(${item.iconUrl})`,
+                  backgroundColor: 'rgba(124, 58, 237, 0.15)',
+                  ...cellStyles,
+                  backgroundImage: isOrigin ? `url(${item.iconUrl})` : 'none',
                   backgroundSize: 'contain',
                   backgroundRepeat: 'no-repeat',
                   backgroundPosition: 'center',
                   position: 'relative',
-                  cursor: isEditable ? 'grab' : 'default'
+                  cursor: isEditable ? 'grab' : 'default',
+                  boxSizing: 'border-box'
                 }}
-                draggable={isEditable}
-                onDragStart={(e) => handleDragStart(e, item)}
-                onMouseEnter={() => setHoveredItem(item)}
-                onMouseLeave={() => setHoveredItem(null)}
-                onMouseMove={(e) => setTooltipPos({ x: e.clientX + 12, y: e.clientY + 12 })}
+                draggable={isOrigin && isEditable}
+                onDragStart={(e) => isOrigin && handleDragStart(e, item)}
               >
-                {/* Actions sur l'objet */}
-                {isEditable && (
+                {isOrigin && isEditable && (
                   <div style={{ position: 'absolute', top: '-4px', right: '-4px', display: 'flex', gap: '2px', zIndex: 2 }}>
                     {(item.width > 1 || item.height > 1) && (
                       <button onClick={() => handleRotateItem(item)} title="Pivoter l'objet" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🔄</button>
@@ -257,37 +294,19 @@ export default function InventoryManager({
                     {isMJ && (
                       <button onClick={() => setEditingItem(item)} title="Éditer" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '50%', width: '18px', height: '18px', fontSize: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✏️</button>
                     )}
-                    <button onClick={() => handleRemoveToBank(item)} title="Renvoyer dans la banque du MJ" style={{ background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '50%', width: '18px', height: '18px', fontSize: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                    <button 
+                      onClick={() => handleRemoveItem(item)} 
+                      title="Renvoyer dans la banque du MJ" 
+                      style={{ background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '50%', width: '18px', height: '18px', fontSize: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      ✕
+                    </button>
                   </div>
                 )}
               </div>
             );
           }
 
-          // 2. Case EXTENSION (Partie du corps de l'objet qui déborde)
-          if (occ?.type === 'extension') {
-            const item = occ.item;
-            return (
-              <div 
-                key={slotIdx}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDropOnSlot(e, slotIdx)}
-                onMouseEnter={() => setHoveredItem(item)}
-                onMouseLeave={() => setHoveredItem(null)}
-                onMouseMove={(e) => setTooltipPos({ x: e.clientX + 12, y: e.clientY + 12 })}
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '6px',
-                  border: '1px dashed var(--accent-border)',
-                  backgroundColor: 'rgba(49, 130, 206, 0.08)',
-                  position: 'relative'
-                }}
-              />
-            );
-          }
-
-          // 3. Case VIDE
           return (
             <div 
               key={slotIdx}
@@ -298,14 +317,14 @@ export default function InventoryManager({
                 height: '64px',
                 borderRadius: '6px',
                 border: '1px dashed var(--border)',
-                backgroundColor: 'var(--bg)'
+                backgroundColor: 'var(--bg)',
+                boxSizing: 'border-box'
               }}
             />
           );
         })}
       </div>
 
-      {/* TOOLTIP SURVOL */}
       {hoveredItem && (
         <div style={{
           position: 'fixed',
@@ -345,7 +364,6 @@ export default function InventoryManager({
   );
 }
 
-// Fonction utilitaire de cartographie
 function getOccupiedSlotsSet(itemList, gridW) {
   const occupied = new Set();
   itemList.forEach(item => {

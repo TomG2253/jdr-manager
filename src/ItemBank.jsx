@@ -20,6 +20,10 @@ export default function ItemBank({ mjUid, players = [] }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [targetPlayerId, setTargetPlayerId] = useState('');
+  
+  // Gestion propre du survol d'infobulle
+  const [hoveredItem, setHoveredItem] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -30,6 +34,7 @@ export default function ItemBank({ mjUid, players = [] }) {
     effect: ''
   });
 
+  // Liaison sécurisée avec le document Firestore du MJ
   useEffect(() => {
     if (!mjUid) return;
     const bankRef = doc(db, "itemBanks", mjUid);
@@ -44,6 +49,7 @@ export default function ItemBank({ mjUid, players = [] }) {
   }, [mjUid]);
 
   const saveBank = async (newItems) => {
+    if (!mjUid) return;
     const bankRef = doc(db, "itemBanks", mjUid);
     await setDoc(bankRef, { items: newItems }, { merge: true });
   };
@@ -111,6 +117,7 @@ export default function ItemBank({ mjUid, players = [] }) {
 
     const updatedBank = bankItems.filter(i => i.id !== item.id);
     await saveBank(updatedBank);
+    setHoveredItem(null);
   };
 
   const handleSaveEdit = async (e) => {
@@ -125,6 +132,7 @@ export default function ItemBank({ mjUid, players = [] }) {
   const handleDeleteFromBank = async (itemId) => {
     const updatedBank = bankItems.filter(i => i.id !== itemId);
     await saveBank(updatedBank);
+    setHoveredItem(null);
   };
 
   return (
@@ -136,7 +144,7 @@ export default function ItemBank({ mjUid, players = [] }) {
         </button>
       </div>
 
-      {/* FORMULAIRE CREATION OBJET */}
+      {/* FORMULAIRE CRÉATION OBJET */}
       {showCreateForm && (
         <form onSubmit={handleCreateItem} style={{ padding: '16px', background: 'var(--bg)', border: '1px solid var(--accent-border)', borderRadius: '8px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <strong style={{ color: 'var(--text-h)', fontSize: '14px' }}>Créer un nouvel objet</strong>
@@ -178,7 +186,7 @@ export default function ItemBank({ mjUid, players = [] }) {
         </form>
       )}
 
-      {/* FORMULAIRE EDITION OBJET BANQUE */}
+      {/* FORMULAIRE ÉDITION OBJET BANQUE */}
       {editingItem && (
         <form onSubmit={handleSaveEdit} style={{ padding: '16px', background: 'var(--bg)', border: '1px solid var(--accent)', borderRadius: '8px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <strong style={{ color: 'var(--accent)', fontSize: '14px' }}>Modifier l'objet : {editingItem.name}</strong>
@@ -214,57 +222,111 @@ export default function ItemBank({ mjUid, players = [] }) {
         </form>
       )}
 
-      {/* LISTE BANQUE */}
+      {/* GRILLE BANQUE : CARTE STRUCTURÉE SANS NATIVE ABSOLUTE BUGGY */}
       {bankItems.length === 0 ? (
         <p style={{ color: 'var(--text)', fontStyle: 'italic', fontSize: '14px', margin: 0 }}>La banque du MJ est vide.</p>
       ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start' }}>
           {bankItems.map(item => (
             <div 
               key={item.id} 
               style={{ 
-                width: '64px', 
-                height: '64px', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                gap: '6px', 
+                padding: '8px', 
+                background: 'var(--bg)', 
                 borderRadius: '8px', 
-                border: '1px solid var(--accent-border)',
-                backgroundImage: `url(${item.iconUrl})`, 
-                backgroundSize: 'cover', 
-                backgroundPosition: 'center',
-                position: 'relative',
-                boxShadow: 'var(--shadow)'
+                border: '1px solid var(--border)' 
               }}
-              title={`${item.name} (${item.width}×${item.height})\n${item.effect ? '✨ ' + item.effect + '\n' : ''}${item.description}`}
             >
-              <span style={{ position: 'absolute', top: '-6px', left: '-6px', background: 'var(--accent)', color: '#fff', fontSize: '9px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px' }}>
-                {item.width}×{item.height}
-              </span>
+              {/* VIGNETTE IMAGE */}
+              <div 
+                onMouseEnter={() => setHoveredItem(item)}
+                onMouseLeave={() => setHoveredItem(null)}
+                onMouseMove={(e) => setTooltipPos({ x: e.clientX + 12, y: e.clientY + 12 })}
+                style={{ 
+                  width: '64px', 
+                  height: '64px', 
+                  borderRadius: '6px', 
+                  border: '1px solid var(--accent-border)',
+                  backgroundImage: `url(${item.iconUrl})`, 
+                  backgroundSize: 'contain',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'center',
+                  position: 'relative',
+                  backgroundColor: 'var(--code-bg)'
+                }}
+              >
+                <span style={{ position: 'absolute', top: '2px', left: '2px', background: 'var(--accent)', color: '#fff', fontSize: '9px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px' }}>
+                  {item.width}×{item.height}
+                </span>
+              </div>
 
-              <div style={{ position: 'absolute', bottom: '-22px', left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: '4px' }}>
+              {/* BARRE D'ACTIONS PROPRE SOUS CHAQUE OBJET */}
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
                 {players.length > 0 && (
                   <select 
                     onChange={(e) => { if (e.target.value) handleGiveToPlayer(item, e.target.value); }} 
                     defaultValue=""
-                    style={{ fontSize: '10px', padding: '1px 2px', borderRadius: '3px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-h)', cursor: 'pointer' }}
+                    style={{ flex: 1, fontSize: '10px', padding: '2px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--code-bg)', color: 'var(--text-h)', cursor: 'pointer', maxWidth: '80px' }}
                   >
-                    <option value="" disabled>Donner à...</option>
+                    <option value="" disabled>Donner...</option>
                     {players.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                 )}
-                
-                <button onClick={() => setEditingItem(item)} title="Modifier" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', padding: '1px 4px' }}>✏️</button>
-                <button onClick={() => handleDeleteFromBank(item.id)} title="Supprimer définitivement" style={{ background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', padding: '1px 4px' }}>✕</button>
+
+                <button onClick={() => setEditingItem(item)} title="Modifier" style={{ background: 'var(--code-bg)', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', padding: '2px 5px' }}>✏️</button>
+                <button onClick={() => handleDeleteFromBank(item.id)} title="Supprimer définitivement" style={{ background: '#e53e3e', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', padding: '2px 5px' }}>✕</button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* TOOLTIP DINAMIQUE */}
+      {hoveredItem && (
+        <div style={{
+          position: 'fixed',
+          top: tooltipPos.y,
+          left: tooltipPos.x,
+          zIndex: 1000,
+          pointerEvents: 'none',
+          padding: '10px 14px',
+          background: 'rgba(20, 20, 25, 0.95)',
+          border: '1px solid var(--accent)',
+          borderRadius: '6px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+          maxWidth: '220px',
+          backdropFilter: 'blur(4px)'
+        }}>
+          <strong style={{ color: 'var(--accent)', display: 'block', fontSize: '14px', marginBottom: '2px' }}>
+            {hoveredItem.name}
+          </strong>
+          <span style={{ fontSize: '10px', color: 'var(--text)', display: 'block', marginBottom: '6px' }}>
+            Dimensions : {hoveredItem.width} × {hoveredItem.height} cases
+          </span>
+
+          {hoveredItem.effect && (
+            <div style={{ color: '#48bb78', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
+              ✨ {hoveredItem.effect}
+            </div>
+          )}
+
+          {hoveredItem.description && (
+            <p style={{ color: 'var(--text)', fontSize: '11px', margin: 0, lineHeight: '1.3' }}>
+              {hoveredItem.description}
+            </p>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// Fonction utilitaire pour trouver une place libre pour une taille (W x H)
 function findFreeSlot(inventory, gridW, gridH, itemW, itemH) {
   const occupied = new Set();
   

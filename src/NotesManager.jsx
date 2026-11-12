@@ -85,7 +85,7 @@ export default function NotesManager({ characterId, initialNotes = [], isEditabl
   return (
     <div style={{ marginTop: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <h4 style={{ margin: 0, color: 'var(--text-h)', fontSize: '16px' }}>📖 Carnet de Notes & Journal</h4>
+        <h4 style={{ margin: 0, color: 'var(--text-h)', fontSize: '16px' }}>Journal et Notes</h4>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {hasUnsavedChanges && (

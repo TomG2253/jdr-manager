@@ -1,19 +1,9 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import ImageInput from './ImageInput';
+import { ITEM_PRESETS } from './presets';
 
-export const ITEM_PRESETS = [
-  { id: 'weapon', label: 'Arme / Dague', url: '/assets/jdr-weapon.jpg' },
-  { id: 'armor', label: 'Armure / Casque', url: '/assets/jdr-armor.jpg' },
-  { id: 'bag', label: 'Sac / Bourse', url: '/assets/jdr-bag.jpg' },
-  { id: 'beer', label: 'Boisson / Chope', url: '/assets/jdr-bierre.jpg' },
-  { id: 'book', label: 'Livre / Grimoire', url: '/assets/jdr-book.jpg' },
-  { id: 'bread', label: 'Nourriture / Pain', url: '/assets/jdr-bread.jpg' },
-  { id: 'flower', label: 'Plante / Fleur', url: '/assets/jdr-flower.jpg' },
-  { id: 'key', label: 'Clé / Artefact', url: '/assets/jdr-key.jpg' },
-  { id: 'paper', label: 'Parchemin / Carte', url: '/assets/jdr-paper.jpg' },
-  { id: 'rock', label: 'Minerai / Cristal', url: '/assets/jdr-rock.jpg' }
-];
 
 export default function ItemBank({ mjUid, players = [] }) {
   const [bankItems, setBankItems] = useState([]);
@@ -21,20 +11,18 @@ export default function ItemBank({ mjUid, players = [] }) {
   const [editingItem, setEditingItem] = useState(null);
   const [targetPlayerId, setTargetPlayerId] = useState('');
   
-  // Gestion propre du survol d'infobulle
   const [hoveredItem, setHoveredItem] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   const [formData, setFormData] = useState({
     name: '',
-    iconUrl: ITEM_PRESETS[0].url,
+    iconUrl: '',
     description: '',
     width: 1,
     height: 1,
     effect: ''
   });
 
-  // Liaison sécurisée avec le document Firestore du MJ
   useEffect(() => {
     if (!mjUid) return;
     const bankRef = doc(db, "itemBanks", mjUid);
@@ -58,10 +46,12 @@ export default function ItemBank({ mjUid, players = [] }) {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
+    const finalIconUrl = formData.iconUrl.trim() || ITEM_PRESETS[0].url;
+
     const newItem = {
       id: crypto.randomUUID(),
       name: formData.name.trim(),
-      iconUrl: formData.iconUrl || ITEM_PRESETS[0].url,
+      iconUrl: finalIconUrl,
       description: formData.description.trim(),
       width: parseInt(formData.width, 10) || 1,
       height: parseInt(formData.height, 10) || 1,
@@ -91,7 +81,7 @@ export default function ItemBank({ mjUid, players = [] }) {
       await saveBank([...bankItems, newItem]);
     }
 
-    setFormData({ name: '', iconUrl: ITEM_PRESETS[0].url, description: '', width: 1, height: 1, effect: '' });
+    setFormData({ name: '', iconUrl: '', description: '', width: 1, height: 1, effect: '' });
     setShowCreateForm(false);
     setTargetPlayerId('');
   };
@@ -138,19 +128,18 @@ export default function ItemBank({ mjUid, players = [] }) {
   return (
     <div style={{ padding: '20px', background: 'var(--code-bg)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h3 style={{ margin: 0, color: 'var(--text-h)' }}>🏰 Banque d'Objets du MJ</h3>
+        <h3 style={{ margin: 0, color: 'var(--text-h)' }}>Banque d'Objets du MJ</h3>
         <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-primary" style={{ fontSize: '13px' }}>
           {showCreateForm ? 'Annuler' : '+ Créer un objet'}
         </button>
       </div>
 
-      {/* FORMULAIRE CRÉATION OBJET */}
       {showCreateForm && (
         <form onSubmit={handleCreateItem} style={{ padding: '16px', background: 'var(--bg)', border: '1px solid var(--accent-border)', borderRadius: '8px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <strong style={{ color: 'var(--text-h)', fontSize: '14px' }}>Créer un nouvel objet</strong>
           
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <input required type="text" placeholder="Nom de l'objet" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={{ flex: 2, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+            <input required type="text" placeholder="Nom de l'objet *" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={{ flex: 2, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }} />
 
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: 'var(--text)' }}>Taille (L × H) :</span>
@@ -160,17 +149,26 @@ export default function ItemBank({ mjUid, players = [] }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <select onChange={e => setFormData({...formData, iconUrl: e.target.value})} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--code-bg)', color: 'var(--text-h)' }}>
-              <option value="">-- Icônes par défaut --</option>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <select 
+              value={ITEM_PRESETS.some(p => p.url === formData.iconUrl) ? formData.iconUrl : ''} 
+              onChange={e => setFormData({...formData, iconUrl: e.target.value})} 
+              style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--code-bg)', color: 'var(--text-h)' }}
+            >
+              <option value="">-- Presets d'icônes --</option>
               {ITEM_PRESETS.map(p => (
                 <option key={p.id} value={p.url}>{p.label}</option>
               ))}
             </select>
-            <input type="text" placeholder="URL image personnalisée (https://...)" value={formData.iconUrl} onChange={e => setFormData({...formData, iconUrl: e.target.value})} style={{ flex: 2, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+
+            <ImageInput 
+              value={formData.iconUrl} 
+              onChange={url => setFormData({...formData, iconUrl: url})} 
+              placeholder="URL ou importer une image..." 
+            />
           </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <input type="text" placeholder="Effet (ex: +5 Armure, +10 PV)" value={formData.effect} onChange={e => setFormData({...formData, effect: e.target.value})} style={{ flex: 2, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }} />
             <select value={targetPlayerId} onChange={e => setTargetPlayerId(e.target.value)} style={{ flex: 2, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--code-bg)', color: 'var(--text-h)' }}>
               <option value="">Placer dans la Banque MJ</option>
@@ -186,7 +184,6 @@ export default function ItemBank({ mjUid, players = [] }) {
         </form>
       )}
 
-      {/* FORMULAIRE ÉDITION OBJET BANQUE */}
       {editingItem && (
         <form onSubmit={handleSaveEdit} style={{ padding: '16px', background: 'var(--bg)', border: '1px solid var(--accent)', borderRadius: '8px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <strong style={{ color: 'var(--accent)', fontSize: '14px' }}>Modifier l'objet : {editingItem.name}</strong>
@@ -202,14 +199,23 @@ export default function ItemBank({ mjUid, players = [] }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <select onChange={e => setEditingItem({...editingItem, iconUrl: e.target.value})} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--code-bg)', color: 'var(--text-h)' }}>
-              <option value="">-- Icônes par défaut --</option>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <select 
+              value={ITEM_PRESETS.some(p => p.url === editingItem.iconUrl) ? editingItem.iconUrl : ''} 
+              onChange={e => setEditingItem({...editingItem, iconUrl: e.target.value})} 
+              style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--code-bg)', color: 'var(--text-h)' }}
+            >
+              <option value="">-- Presets d'icônes --</option>
               {ITEM_PRESETS.map(p => (
                 <option key={p.id} value={p.url}>{p.label}</option>
               ))}
             </select>
-            <input type="text" value={editingItem.iconUrl} onChange={e => setEditingItem({...editingItem, iconUrl: e.target.value})} placeholder="URL d'image" style={{ flex: 2, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+
+            <ImageInput 
+              value={editingItem.iconUrl} 
+              onChange={url => setEditingItem({...editingItem, iconUrl: url})} 
+              placeholder="URL ou importer une image..." 
+            />
           </div>
 
           <input type="text" value={editingItem.effect || ''} onChange={e => setEditingItem({...editingItem, effect: e.target.value})} placeholder="Effet" style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }} />
@@ -222,7 +228,6 @@ export default function ItemBank({ mjUid, players = [] }) {
         </form>
       )}
 
-      {/* GRILLE BANQUE : CARTE STRUCTURÉE SANS NATIVE ABSOLUTE BUGGY */}
       {bankItems.length === 0 ? (
         <p style={{ color: 'var(--text)', fontStyle: 'italic', fontSize: '14px', margin: 0 }}>La banque du MJ est vide.</p>
       ) : (
@@ -241,7 +246,6 @@ export default function ItemBank({ mjUid, players = [] }) {
                 border: '1px solid var(--border)' 
               }}
             >
-              {/* VIGNETTE IMAGE */}
               <div 
                 onMouseEnter={() => setHoveredItem(item)}
                 onMouseLeave={() => setHoveredItem(null)}
@@ -251,20 +255,31 @@ export default function ItemBank({ mjUid, players = [] }) {
                   height: '64px', 
                   borderRadius: '6px', 
                   border: '1px solid var(--accent-border)',
-                  backgroundImage: `url(${item.iconUrl})`, 
-                  backgroundSize: 'contain',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'center',
                   position: 'relative',
-                  backgroundColor: 'var(--code-bg)'
+                  backgroundColor: 'var(--code-bg)',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justify: 'center'
                 }}
               >
-                <span style={{ position: 'absolute', top: '2px', left: '2px', background: 'var(--accent)', color: '#fff', fontSize: '9px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px' }}>
+                {item.iconUrl && (
+                  <img 
+                    src={item.iconUrl} 
+                    alt={item.name} 
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = '/assets/jdr-bag.jpg';
+                    }}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                  />
+                )}
+                <span style={{ position: 'absolute', top: '2px', left: '2px', background: 'var(--accent)', color: '#fff', fontSize: '9px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', zIndex: 1 }}>
                   {item.width}×{item.height}
                 </span>
               </div>
 
-              {/* BARRE D'ACTIONS PROPRE SOUS CHAQUE OBJET */}
               <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
                 {players.length > 0 && (
                   <select 
@@ -287,7 +302,6 @@ export default function ItemBank({ mjUid, players = [] }) {
         </div>
       )}
 
-      {/* TOOLTIP DINAMIQUE */}
       {hoveredItem && (
         <div style={{
           position: 'fixed',

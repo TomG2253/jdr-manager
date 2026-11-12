@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import LiveResourceBar from './LiveResourceBar';
 import SkillManager from './SkillManager';
@@ -7,17 +7,19 @@ import InventoryManager from './InventoryManager';
 import StatusManager from './StatusManager';
 import TraitManager from './TraitManager';
 import NotesManager from './NotesManager';
+import ImageInput from './ImageInput';
 
 export default function CharacterCard({ character, isEditable, isMJ = false }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [liveStats, setLiveStats] = useState(character.liveStats || { pvCurrent: 100, pvMax: 100, pmCurrent: 50, pmMax: 50 });
+  const [activeTab, setActiveTab] = useState(null); 
   
-  // Pièces d'or
+  const [liveStats, setLiveStats] = useState(character.liveStats || { pvCurrent: 100, pvMax: 100, pmCurrent: 50, pmMax: 50 });
   const [gold, setGold] = useState(character.gold || 0);
   const [isEditingGold, setIsEditingGold] = useState(false);
   const [tempGold, setTempGold] = useState(character.gold || 0);
 
-  // Profil
+  // Profil du joueur qui contrôle ce personnage (utilisé par le MJ)
+  const [playerUser, setPlayerUser] = useState(null);
+
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
     name: character.name || '',
@@ -29,10 +31,39 @@ export default function CharacterCard({ character, isEditable, isMJ = false }) {
     avatarUrl: character.avatarUrl || ''
   });
 
+  // Récupération de l'avatar/pseudo du joueur pour la vue MJ uniquement
   useEffect(() => {
-    if (character.liveStats) {
-      setLiveStats(character.liveStats);
+    if (!isMJ) {
+      setPlayerUser(null);
+      return;
     }
+
+    // Le champ exact dans ton document est ownerId !
+    const playerUid = character.ownerId || character.userId || character.playerId;
+    if (!playerUid) {
+      setPlayerUser(null);
+      return;
+    }
+
+    const fetchPlayerUser = async () => {
+      try {
+        const userSnap = await getDoc(doc(db, "users", playerUid));
+        if (userSnap.exists()) {
+          setPlayerUser(userSnap.data());
+        } else {
+          setPlayerUser(null);
+        }
+      } catch (err) {
+        console.error("Erreur récupération du profil joueur :", err);
+        setPlayerUser(null);
+      }
+    };
+
+    fetchPlayerUser();
+  }, [character, isMJ]);
+
+  useEffect(() => {
+    if (character.liveStats) setLiveStats(character.liveStats);
     setGold(character.gold || 0);
     setTempGold(character.gold || 0);
   }, [character]);
@@ -49,6 +80,10 @@ export default function CharacterCard({ character, isEditable, isMJ = false }) {
     });
   }, [character]);
 
+  const handleToggleTab = (tabName) => {
+    setActiveTab(prev => prev === tabName ? null : tabName);
+  };
+
   const handleStatUpdate = (resourceKey, newValue) => {
     setLiveStats(prev => ({
       ...prev,
@@ -61,25 +96,24 @@ export default function CharacterCard({ character, isEditable, isMJ = false }) {
     const safeVal = Math.max(0, parseInt(newVal, 10) || 0);
     setGold(safeVal);
     setIsEditingGold(false);
-    if (!character.id || character.id === 'test-id') return;
+    if (!character.id) return;
 
     try {
       const charRef = doc(db, "characters", character.id);
       await updateDoc(charRef, { gold: safeVal });
     } catch (error) {
-      console.error("Erreur mise à jour PO :", error);
+      console.error("Erreur PO :", error);
     }
   };
 
   const handleGoldDelta = (delta) => {
     if (!isMJ) return;
-    const safeVal = Math.max(0, gold + delta);
-    handleSaveGold(safeVal);
+    handleSaveGold(gold + delta);
   };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
-    if (!character.id || character.id === 'test-id') {
+    if (!character.id) {
       setIsEditingProfile(false);
       return;
     }
@@ -97,21 +131,19 @@ export default function CharacterCard({ character, isEditable, isMJ = false }) {
       });
       setIsEditingProfile(false);
     } catch (error) {
-      console.error("Erreur mise à jour profil :", error);
+      console.error("Erreur profil :", error);
     }
   };
 
   return (
     <div style={{ 
-      border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', 
-      backgroundColor: 'var(--bg)', transition: 'all 0.3s ease', boxShadow: 'var(--shadow)',
-      position: 'relative', overflow: 'hidden'
+      border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', 
+      backgroundColor: 'var(--bg)', boxShadow: 'var(--shadow)', position: 'relative'
     }}>
       
-      {/* MODE ÉDITION DU PROFIL */}
       {isEditingProfile ? (
-        <form onSubmit={handleSaveProfile} style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: 'var(--code-bg)', borderRadius: '8px', border: '1px solid var(--accent-border)' }}>
-          <strong style={{ color: 'var(--text-h)', fontSize: '14px' }}>Éditer le personnage</strong>
+        <form onSubmit={handleSaveProfile} style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', background: 'var(--code-bg)', borderRadius: '8px', border: '1px solid var(--accent-border)' }}>
+          <strong style={{ color: 'var(--text-h)', fontSize: '13px' }}>Éditer le profil</strong>
           
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <input required type="text" placeholder="Nom" value={profileData.name} onChange={e => setProfileData({...profileData, name: e.target.value})} style={{ flex: 2, padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }} />
@@ -120,167 +152,241 @@ export default function CharacterCard({ character, isEditable, isMJ = false }) {
           </div>
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <input type="text" placeholder="Âge (ex: 28 ans)" value={profileData.age} onChange={e => setProfileData({...profileData, age: e.target.value})} style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }} />
-            <input type="text" placeholder="Taille (ex: 1m75)" value={profileData.height} onChange={e => setProfileData({...profileData, height: e.target.value})} style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }} />
-            <input type="text" placeholder="Alignement (ex: Loyal Bon)" value={profileData.alignment} onChange={e => setProfileData({...profileData, alignment: e.target.value})} style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+            <input type="text" placeholder="Âge" value={profileData.age} onChange={e => setProfileData({...profileData, age: e.target.value})} style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+            <input type="text" placeholder="Taille" value={profileData.height} onChange={e => setProfileData({...profileData, height: e.target.value})} style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+            <input type="text" placeholder="Alignement" value={profileData.alignment} onChange={e => setProfileData({...profileData, alignment: e.target.value})} style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }} />
           </div>
 
-          <input type="url" placeholder="URL Avatar" value={profileData.avatarUrl} onChange={e => setProfileData({...profileData, avatarUrl: e.target.value})} style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+          <ImageInput 
+            value={profileData.avatarUrl} 
+            onChange={url => setProfileData({...profileData, avatarUrl: url})} 
+            placeholder="URL de l'avatar ou importer une photo..." 
+          />
           
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={() => setIsEditingProfile(false)} className="btn-secondary" style={{ padding: '4px 12px', fontSize: '12px' }}>Annuler</button>
-            <button type="submit" className="btn-primary" style={{ padding: '4px 12px', fontSize: '12px' }}>Enregistrer</button>
+            <button type="button" onClick={() => setIsEditingProfile(false)} className="btn-secondary" style={{ padding: '4px 10px', fontSize: '11px' }}>Annuler</button>
+            <button type="submit" className="btn-primary" style={{ padding: '4px 10px', fontSize: '11px' }}>Enregistrer</button>
           </div>
         </form>
       ) : (
-        /* EN-TÊTE CLASSIQUE */
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h3 style={{ margin: 0, fontSize: '22px', color: 'var(--text-h)' }}>{character.name}</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0, fontSize: '20px', color: 'var(--text-h)' }}>{character.name}</h3>
+
+              {/* PASTILLE DU JOUEUR (Affichée uniquement côté MJ) */}
+              {isMJ && playerUser && (
+                <div 
+                  title={`Joué par : ${playerUser.pseudo || 'Joueur'}`}
+                  style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '6px',
+                    background: 'var(--code-bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '20px',
+                    padding: '2px 8px 2px 4px'
+                  }}
+                >
+                  <div style={{
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    background: 'var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justify: 'center'
+                  }}>
+                    {playerUser.avatarUrl ? (
+                      <img 
+                        src={playerUser.avatarUrl} 
+                        alt={playerUser.pseudo} 
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '/assets/default-avatar.jpg';
+                        }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      />
+                    ) : (
+                      <span style={{ fontSize: '11px', opacity: 0.5 }}>?</span>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-h)' }}>
+                    {playerUser.pseudo}
+                  </span>
+                </div>
+              )}
+
               {isEditable && (
-                <button onClick={() => setIsEditingProfile(true)} style={{ background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '12px', padding: 0, textDecoration: 'underline' }}>
-                  ✏️ Modifier
+                <button onClick={() => setIsEditingProfile(true)} style={{ background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '11px', padding: 0, textDecoration: 'underline' }}>
+                  Modifier
                 </button>
               )}
             </div>
             
-            <div style={{ color: 'var(--text)', fontSize: '14px', fontWeight: '500', marginTop: '2px' }}>
+            <div style={{ color: 'var(--text)', fontSize: '13px', fontWeight: '500', marginTop: '2px' }}>
               {character.race} • {character.class}
               {(character.age || character.height || character.alignment) && (
-                <span style={{ opacity: 0.85, fontSize: '13px', marginLeft: '6px' }}>
+                <span style={{ opacity: 0.85, fontSize: '12px', marginLeft: '6px' }}>
                   ({[character.age, character.height, character.alignment].filter(Boolean).join(' • ')})
                 </span>
               )}
             </div>
           </div>
 
-          {/* COMPTEUR DE PIÈCES D'OR */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              padding: '6px 12px', 
-              background: 'var(--code-bg)', 
-              border: '1px solid #d69e2e', 
-              borderRadius: '20px', 
-              fontSize: '14px', 
-              fontWeight: 'bold', 
-              color: '#d69e2e' 
-            }}>
-              <span>🪙</span>
-              {isEditingGold && isMJ ? (
-                <input 
-                  type="number" 
-                  autoFocus
-                  value={tempGold} 
-                  onChange={(e) => setTempGold(e.target.value)}
-                  onBlur={() => handleSaveGold(tempGold)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveGold(tempGold)}
-                  style={{ width: '60px', padding: '1px 4px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-h)' }}
-                />
-              ) : (
-                <span 
-                  onClick={() => { if (isMJ) { setTempGold(gold); setIsEditingGold(true); } }}
-                  title={isMJ ? "Cliquer pour modifier les PO" : undefined}
-                  style={{ cursor: isMJ ? 'pointer' : 'default', textDecoration: isMJ ? 'underline dotted' : 'none' }}
-                >
-                  {gold} PO
-                </span>
-              )}
+          <div style={{ 
+            display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', 
+            background: 'var(--code-bg)', border: '1px solid #d69e2e', borderRadius: '16px', 
+            fontSize: '13px', fontWeight: 'bold', color: '#d69e2e' 
+          }}>
+            <span>PO</span>
+            {isEditingGold && isMJ ? (
+              <input 
+                type="number" autoFocus value={tempGold} 
+                onChange={(e) => setTempGold(e.target.value)}
+                onBlur={() => handleSaveGold(tempGold)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveGold(tempGold)}
+                style={{ width: '50px', padding: '1px 4px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-h)' }}
+              />
+            ) : (
+              <span 
+                onClick={() => { if (isMJ) { setTempGold(gold); setIsEditingGold(true); } }}
+                style={{ cursor: isMJ ? 'pointer' : 'default', textDecoration: isMJ ? 'underline dotted' : 'none' }}
+              >
+                {gold} PO
+              </span>
+            )}
 
-              {isMJ && (
-                <div style={{ display: 'flex', gap: '2px', marginLeft: '4px' }}>
-                  <button onClick={() => handleGoldDelta(-10)} title="-10 PO" className="btn-secondary" style={{ padding: '0 4px', fontSize: '10px', height: '18px' }}>-10</button>
-                  <button onClick={() => handleGoldDelta(-1)} title="-1 PO" className="btn-secondary" style={{ padding: '0 4px', fontSize: '10px', height: '18px' }}>-1</button>
-                  <button onClick={() => handleGoldDelta(1)} title="+1 PO" className="btn-secondary" style={{ padding: '0 4px', fontSize: '10px', height: '18px' }}>+1</button>
-                  <button onClick={() => handleGoldDelta(10)} title="+10 PO" className="btn-secondary" style={{ padding: '0 4px', fontSize: '10px', height: '18px' }}>+10</button>
-                </div>
-              )}
-            </div>
-
-            <button onClick={() => setIsExpanded(!isExpanded)} className="btn-secondary" style={{ fontSize: '14px' }}>
-              {isExpanded ? 'Réduire la fiche' : 'Ouvrir la fiche'}
-            </button>
+            {isMJ && (
+              <div style={{ display: 'flex', gap: '2px', marginLeft: '4px' }}>
+                <button onClick={() => handleGoldDelta(-10)} title="-10 PO" className="btn-secondary" style={{ padding: '0 3px', fontSize: '9px', height: '16px' }}>-10</button>
+                <button onClick={() => handleGoldDelta(-1)} title="-1 PO" className="btn-secondary" style={{ padding: '0 3px', fontSize: '9px', height: '16px' }}>-1</button>
+                <button onClick={() => handleGoldDelta(1)} title="+1 PO" className="btn-secondary" style={{ padding: '0 3px', fontSize: '9px', height: '16px' }}>+1</button>
+                <button onClick={() => handleGoldDelta(10)} title="+10 PO" className="btn-secondary" style={{ padding: '0 3px', fontSize: '9px', height: '16px' }}>+10</button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* GESTIONNAIRES DE STATUTS ET DE TRAITS (MJ UNIQUEMENT) */}
-      <StatusManager 
-        characterId={character.id} 
-        statuses={character.statuses || []} 
-        isMJ={isMJ} 
-      />
+      <StatusManager characterId={character.id} statuses={character.statuses || []} isMJ={isMJ} />
+      <TraitManager characterId={character.id} traits={character.traits || []} isMJ={isMJ} />
 
-      <TraitManager 
-        characterId={character.id} 
-        traits={character.traits || []} 
-        isMJ={isMJ} 
-      />
-
-      {/* BLOC AVATAR + BARRES PV/PM */}
-      <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '20px' }}>
         <div style={{ 
-          width: '120px', height: '120px', borderRadius: '8px', backgroundColor: 'var(--code-bg)',
-          border: '1px solid var(--border)', backgroundImage: `url(${character.avatarUrl || ''})`,
-          backgroundSize: 'cover', backgroundPosition: 'center', flexShrink: 0
-        }} />
+          width: '80px', height: '80px', borderRadius: '8px', backgroundColor: 'var(--code-bg)',
+          border: '1px solid var(--border)', flexShrink: 0, overflow: 'hidden',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          {character.avatarUrl ? (
+            <img 
+              src={character.avatarUrl} 
+              alt={character.name} 
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = '/assets/default-avatar.jpg';
+              }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            />
+          ) : (
+            <span style={{ fontSize: '24px', opacity: 0.3 }}>?</span>
+          )}
+        </div>
         
         <div style={{ flex: 1 }}>
-          <LiveResourceBar 
-            characterId={character.id} 
-            resourceKey="pv" 
-            currentVal={liveStats.pvCurrent} 
-            maxVal={liveStats.pvMax} 
-            color="#e53e3e" 
-            isEditable={isEditable} 
-            isMJ={isMJ} 
-            onUpdate={handleStatUpdate}
-          />
-          <LiveResourceBar 
-            characterId={character.id} 
-            resourceKey="pm" 
-            currentVal={liveStats.pmCurrent} 
-            maxVal={liveStats.pmMax} 
-            color="#3182ce" 
-            isEditable={isEditable} 
-            isMJ={isMJ} 
-            onUpdate={handleStatUpdate}
-          />
+          <LiveResourceBar characterId={character.id} resourceKey="pv" currentVal={liveStats.pvCurrent} maxVal={liveStats.pvMax} color="#e53e3e" isEditable={isEditable} isMJ={isMJ} onUpdate={handleStatUpdate} />
+          <LiveResourceBar characterId={character.id} resourceKey="pm" currentVal={liveStats.pmCurrent} maxVal={liveStats.pmMax} color="#3182ce" isEditable={isEditable} isMJ={isMJ} onUpdate={handleStatUpdate} />
         </div>
       </div>
 
-      {/* VOLET DÉPLIABLE */}
-      {isExpanded && (
-        <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
-          <h4 style={{ margin: '0 0 16px 0', color: 'var(--text-h)' }}>Évolution du Personnage</h4>
-          
-          <SkillManager 
-            characterId={character.id}
-            initialSkills={character.skills || []} 
-            totalPC={character.totalPC || 0} 
-            isSkillsLocked={character.isSkillsLocked ?? true}
-            isEditable={isEditable} 
-            isMJ={isMJ}
-          />
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: activeTab ? '16px' : '0px' }}>
+        <button
+          onClick={() => handleToggleTab('skills')}
+          style={{
+            padding: '8px 16px',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            border: 'none',
+            background: 'none',
+            color: activeTab === 'skills' ? 'var(--accent)' : 'var(--text)',
+            borderBottom: activeTab === 'skills' ? '2px solid var(--accent)' : '2px solid transparent',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          Compétences {activeTab === 'skills' && '▲'}
+        </button>
 
-          <InventoryManager 
-            characterId={character.id}
-            mjUid={character.mjId}
-            items={character.inventory || []}
-            inventoryWidth={character.inventoryWidth || 4}
-            inventoryHeight={character.inventoryHeight || 3}
-            isEditable={isEditable}
-            isMJ={isMJ}
-          />
+        <button
+          onClick={() => handleToggleTab('inventory')}
+          style={{
+            padding: '8px 16px',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            border: 'none',
+            background: 'none',
+            color: activeTab === 'inventory' ? 'var(--accent)' : 'var(--text)',
+            borderBottom: activeTab === 'inventory' ? '2px solid var(--accent)' : '2px solid transparent',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          Inventaire {activeTab === 'inventory' && '▲'}
+        </button>
 
-          <NotesManager 
-            characterId={character.id}
-            initialNotes={character.notes || []}
-            isEditable={isEditable}
-          />
+        <button
+          onClick={() => handleToggleTab('journal')}
+          style={{
+            padding: '8px 16px',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            border: 'none',
+            background: 'none',
+            color: activeTab === 'journal' ? 'var(--accent)' : 'var(--text)',
+            borderBottom: activeTab === 'journal' ? '2px solid var(--accent)' : '2px solid transparent',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          Journal & Notes {activeTab === 'journal' && '▲'}
+        </button>
+      </div>
+
+      {activeTab && (
+        <div>
+          {activeTab === 'skills' && (
+            <SkillManager 
+              characterId={character.id}
+              initialSkills={character.skills || []} 
+              totalPC={character.totalPC || 0} 
+              isSkillsLocked={character.isSkillsLocked ?? true}
+              isEditable={isEditable} 
+              isMJ={isMJ}
+            />
+          )}
+
+          {activeTab === 'inventory' && (
+            <InventoryManager 
+              characterId={character.id}
+              mjUid={character.mjId}
+              items={character.inventory || []}
+              inventoryWidth={character.inventoryWidth || 4}
+              inventoryHeight={character.inventoryHeight || 3}
+              isEditable={isEditable}
+              isMJ={isMJ}
+            />
+          )}
+
+          {activeTab === 'journal' && (
+            <NotesManager 
+              characterId={character.id}
+              initialNotes={character.notes || []}
+              isEditable={isEditable}
+            />
+          )}
         </div>
       )}
     </div>

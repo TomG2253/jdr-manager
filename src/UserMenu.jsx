@@ -1,64 +1,120 @@
 import { useState, useEffect } from 'react';
-import { signOut, updatePassword } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import {
+  signOut,
+  updatePassword,
+  updateEmail,
+  EmailAuthProvider,
+  reauthenticateWithCredential
+} from 'firebase/auth';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import ImageInput from './ImageInput';
+import { formatLoginEmail, formatAuthPassword } from './Login';
 
 export default function UserMenu({ user, userRole }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
-  const [pseudo, setPseudo] = useState(user?.email?.split('@')[0] || '');
+  const [username, setUsername] = useState(user?.email?.split('@')[0] || '');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [managedPassword, setManagedPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  
+
+  const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
 
   useEffect(() => {
     if (!user?.uid) return;
-    const fetchUserData = async () => {
-      try {
-        const userSnap = await getDoc(doc(db, "users", user.uid));
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          if (data.pseudo) setPseudo(data.pseudo);
-          if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
-        }
-      } catch (err) {
-        console.error("Erreur chargement profil utilisateur :", err);
+    const unsubscribe = onSnapshot(doc(db, "users", user.uid), (userSnap) => {
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        setUsername(data.username || data.pseudo || user.email?.split('@')[0] || '');
+        setAvatarUrl(data.avatarUrl || '');
+        setManagedPassword(data.managedPassword || '');
       }
-    };
-    fetchUserData();
+    });
+    return () => unsubscribe();
   }, [user]);
+
+  const reauthIfNeeded = async () => {
+    if (!auth.currentUser?.email || !managedPassword) return;
+    const credential = EmailAuthProvider.credential(
+      auth.currentUser.email,
+      formatAuthPassword(managedPassword)
+    );
+    await reauthenticateWithCredential(auth.currentUser, credential);
+  };
 
   const handleSaveAccount = async (e) => {
     e.preventDefault();
     setStatusMsg({ type: '', text: '' });
 
-    try {
-      // 1. Mise à jour Firestore (Pseudo & Avatar)
-      await updateDoc(doc(db, "users", user.uid), {
-        pseudo: pseudo.trim(),
-        avatarUrl: avatarUrl.trim()
-      });
+    const cleanUsername = username.trim();
+    const cleanNewPassword = newPassword.trim();
 
-      // 2. Mise à jour Mot de Passe avec le padding _JDR_
-      if (newPassword.trim()) {
-        const paddedPassword = newPassword.trim() + "_JDR_";
-        await updatePassword(auth.currentUser, paddedPassword);
+    if (!cleanUsername) {
+      setStatusMsg({ type: 'error', text: "Le nom d'utilisateur est obligatoire." });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const firestoreUpdates = {
+        username: cleanUsername,
+        avatarUrl: avatarUrl.trim() || '/assets/jdr-bag.jpg'
+      };
+
+      // 1. Mise à jour de l'identifiant de connexion (@jdr.com) si modifié
+      const targetEmail = formatLoginEmail(cleanUsername);
+      if (auth.currentUser && auth.currentUser.email !== targetEmail) {
+        try {
+          await updateEmail(auth.currentUser, targetEmail);
+          firestoreUpdates.email = targetEmail;
+        } catch (emailErr) {
+          if (emailErr.code === 'auth/requires-recent-login') {
+            await reauthIfNeeded();
+            await updateEmail(auth.currentUser, targetEmail);
+            firestoreUpdates.email = targetEmail;
+          } else if (emailErr.code === 'auth/email-already-in-use') {
+            setStatusMsg({ type: 'error', text: "Cet identifiant est déjà pris par un autre utilisateur." });
+            setLoading(false);
+            return;
+          } else {
+            throw emailErr;
+          }
+        }
       }
+
+      // 2. Mise à jour du mot de passe (avec suffixe _JDR_ et synchro Admin)
+      if (cleanNewPassword) {
+        const paddedPassword = formatAuthPassword(cleanNewPassword);
+        try {
+          await updatePassword(auth.currentUser, paddedPassword);
+        } catch (passErr) {
+          if (passErr.code === 'auth/requires-recent-login') {
+            await reauthIfNeeded();
+            await updatePassword(auth.currentUser, paddedPassword);
+          } else {
+            throw passErr;
+          }
+        }
+        firestoreUpdates.managedPassword = cleanNewPassword;
+      }
+
+      // 3. Mise à jour Firestore (synchronisé en direct avec l'Admin)
+      await updateDoc(doc(db, "users", user.uid), firestoreUpdates);
 
       setStatusMsg({ type: 'success', text: 'Profil mis à jour avec succès !' });
       setNewPassword('');
-      setTimeout(() => setShowModal(false), 1500);
+      setTimeout(() => {
+        setShowModal(false);
+        setStatusMsg({ type: '', text: '' });
+      }, 1200);
     } catch (err) {
       console.error("Erreur modification compte :", err);
-
-      if (err.code === 'auth/requires-recent-login') {
-        setStatusMsg({ type: 'error', text: 'Par sécurité, veuillez vous déconnecter puis vous reconnecter pour changer de mot de passe.' });
-      } else {
-        setStatusMsg({ type: 'error', text: 'Erreur : ' + err.message });
-      }
+      setStatusMsg({ type: 'error', text: `Erreur : ${err.message}` });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -87,21 +143,24 @@ export default function UserMenu({ user, userRole }) {
           background: 'var(--border)',
           display: 'flex',
           alignItems: 'center',
-          justify: 'center'
+          justifyContent: 'center'
         }}>
-          {avatarUrl ? (
-            <img src={avatarUrl} alt={pseudo} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <span style={{ fontSize: '13px', opacity: 0.5 }}>?</span>
-          )}
+          <img
+            src={avatarUrl || '/assets/jdr-bag.jpg'}
+            alt={username}
+            referrerPolicy="no-referrer"
+            onError={(e) => { e.target.onerror = null; e.target.src = '/assets/jdr-bag.jpg'; }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
         </div>
-        <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{pseudo} ({userRole})</span>
-        <span style={{ fontSize: '10px', opacity: 0.7 }}>▼</span>
+        <span style={{ fontSize: '13px', fontWeight: 'bold' }}>
+          {username} ({userRole?.toUpperCase()})
+        </span>
       </button>
 
       {/* MENU DÉROULANT */}
       {isOpen && (
-        <div 
+        <div
           onClick={() => setIsOpen(false)}
           style={{
             position: 'absolute',
@@ -117,7 +176,11 @@ export default function UserMenu({ user, userRole }) {
           }}
         >
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => {
+              setStatusMsg({ type: '', text: '' });
+              setNewPassword('');
+              setShowModal(true);
+            }}
             style={{
               width: '100%',
               padding: '10px 14px',
@@ -132,7 +195,7 @@ export default function UserMenu({ user, userRole }) {
           >
             Mon compte
           </button>
-          
+
           <button
             onClick={() => signOut(auth)}
             style={{
@@ -161,11 +224,11 @@ export default function UserMenu({ user, userRole }) {
           zIndex: 1000,
           display: 'flex',
           alignItems: 'center',
-          justify: 'center',
+          justifyContent: 'center',
           padding: '20px'
         }}>
-          <form 
-            onSubmit={handleSaveAccount} 
+          <form
+            onSubmit={handleSaveAccount}
             style={{
               width: '100%',
               maxWidth: '400px',
@@ -175,45 +238,54 @@ export default function UserMenu({ user, userRole }) {
               padding: '24px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '14px'
+              gap: '14px',
+              textAlign: 'left'
             }}
           >
             <h3 style={{ margin: 0, color: 'var(--text-h)' }}>Paramètres du compte</h3>
 
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text)', marginBottom: '4px' }}>Nom d'utilisateur / Pseudo</label>
-              <input 
-                required 
-                type="text" 
-                value={pseudo} 
-                onChange={e => setPseudo(e.target.value)} 
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', boxSizing: 'border-box' }} 
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text)', marginBottom: '4px' }}>
+                Identifiant (connexion et affichage)
+              </label>
+              <input
+                required
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', boxSizing: 'border-box' }}
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text)', marginBottom: '4px' }}>Photo de profil</label>
-              <ImageInput 
-                value={avatarUrl} 
-                onChange={url => setAvatarUrl(url)} 
-                placeholder="URL ou importer une photo..." 
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text)', marginBottom: '4px' }}>
+                Photo de profil (PP)
+              </label>
+              <ImageInput
+                value={avatarUrl}
+                onChange={url => setAvatarUrl(url)}
+                placeholder="URL ou importer une photo..."
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text)', marginBottom: '4px' }}>Nouveau mot de passe (laisser vide pour ne pas changer)</label>
-              <input 
-                type="password" 
-                placeholder="••••••••" 
-                value={newPassword} 
-                onChange={e => setNewPassword(e.target.value)} 
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', boxSizing: 'border-box' }} 
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text)', marginBottom: '4px' }}>
+                Nouveau mot de passe (laisser vide si inchangé)
+              </label>
+              <input
+                type="password"
+                placeholder="Nouveau mot de passe..."
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', boxSizing: 'border-box' }}
               />
             </div>
 
             {statusMsg.text && (
-              <div style={{ 
-                padding: '8px', borderRadius: '4px', fontSize: '12px',
+              <div style={{
+                padding: '8px',
+                borderRadius: '4px',
+                fontSize: '12px',
                 background: statusMsg.type === 'error' ? 'rgba(229, 62, 62, 0.15)' : 'rgba(72, 187, 120, 0.15)',
                 color: statusMsg.type === 'error' ? '#e53e3e' : '#48bb78',
                 border: `1px solid ${statusMsg.type === 'error' ? '#e53e3e' : '#48bb78'}`
@@ -223,8 +295,12 @@ export default function UserMenu({ user, userRole }) {
             )}
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '8px' }}>
-              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Annuler</button>
-              <button type="submit" className="btn-primary">Enregistrer</button>
+              <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" disabled={loading}>
+                Annuler
+              </button>
+              <button type="submit" className="btn-primary" disabled={loading}>
+                {loading ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
             </div>
           </form>
         </div>

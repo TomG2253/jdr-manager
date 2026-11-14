@@ -365,6 +365,8 @@ export default function CharacterCard({ character, isEditable, isMJ = false }) {
               isSkillsLocked={character.isSkillsLocked ?? true}
               isEditable={isEditable} 
               isMJ={isMJ}
+              skillCategories={character.skillCategories || []}
+              lockedSpentPC={character.lockedSpentPC || 0}
             />
           )}
 

@@ -4,7 +4,7 @@ export default function ImageInput({ value, onChange, placeholder = "URL ou impo
   const [loading, setLoading] = useState(false);
 
   // Clé d'API publique ImgBB
-  const IMGBB_API_KEY = 'df66e2cbb242ebef0b1fe3c8fce2ed6c';
+  const IMGBB_API_KEY = '11a9d9c4ee1d16b84b97b3107f5997e2';
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];

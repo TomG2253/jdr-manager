@@ -3,7 +3,8 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { auth, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import Login from './login';
+import Login from './Login';
+import AdminDashboard from './AdminDashboard';
 import DashboardMJ from './DashboardMJ';
 import DashboardPlayer from './DashboardPlayer';
 import SpectatorView from './SpectatorView';
@@ -25,6 +26,8 @@ function App() {
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         if (userDoc.exists()) {
           setUserRole(userDoc.data().role);
+        } else {
+          setUserRole(null);
         }
       } else {
         setUser(null);
@@ -35,89 +38,97 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  if (loading) return <div style={{ marginTop: '100px' }}>Chargement de l'univers...</div>;
+  if (loading) return <div style={{ marginTop: '100px', textAlign: 'center' }}>Chargement de l'univers...</div>;
 
   return (
     <Router>
       <Routes>
         <Route path="/spectator/:mjId" element={<SpectatorView />} />
-        
-        <Route path="/" element={
-          !user ? <Login /> : (
-            <div>
-              {/* HEADER DE NAVIGATION GLOBAL */}
-              <header style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                padding: '12px 24px', 
-                borderBottom: '1px solid var(--border)',
-                background: 'var(--code-bg)',
-                width: '100%',
-                boxSizing: 'border-box'
-              }}>
-                {/* BLOC GAUCHE : TITRE ET ONGLETS */}
-                {/* BLOC GAUCHE : LOGO, TITRE ET ONGLETS */}
-<div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-    <img 
-      src="/assets/logo.png" 
-      alt="JDR Manager Logo" 
-      style={{ height: '32px', width: '32px', objectFit: 'contain' }} 
-    />
-    <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
-      JDR Manager
-    </h2>
-  </div>
 
-  {userRole === 'mj' && (
-    <nav style={{ display: 'flex', gap: '6px' }}>
-      <button
-        onClick={() => setMainTab('players')}
-        className={mainTab === 'players' ? "btn-primary" : "btn-secondary"}
-        style={{ fontSize: '13px' }}
-      >
-        Joueurs
-      </button>
+        <Route
+          path="/"
+          element={
+            !user ? (
+              <Login />
+            ) : userRole === 'admin' ? (
+              <AdminDashboard currentUser={user} />
+            ) : (
+              <div>
+                {/* HEADER DE NAVIGATION GLOBAL */}
+                <header
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '12px 24px',
+                    borderBottom: '1px solid var(--border)',
+                    background: 'var(--code-bg)',
+                    width: '100%',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  {/* BLOC GAUCHE : LOGO, TITRE ET ONGLETS */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <img
+                        src="/assets/logo.png"
+                        alt="JDR Manager Logo"
+                        style={{ height: '32px', width: '32px', objectFit: 'contain' }}
+                      />
+                      <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                        JDR Manager
+                      </h2>
+                    </div>
 
-      <button
-        onClick={() => setMainTab('items')}
-        className={mainTab === 'items' ? "btn-primary" : "btn-secondary"}
-        style={{ fontSize: '13px' }}
-      >
-        Objets
-      </button>
+                    {userRole === 'mj' && (
+                      <nav style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => setMainTab('players')}
+                          className={mainTab === 'players' ? "btn-primary" : "btn-secondary"}
+                          style={{ fontSize: '13px' }}
+                        >
+                          Joueurs
+                        </button>
 
-      {/* FUTURS ONGLETS */}
-      <button disabled className="btn-secondary" style={{ fontSize: '13px', opacity: 0.45 }} title="Bientôt disponible">
-        PNJ
-      </button>
-      <button disabled className="btn-secondary" style={{ fontSize: '13px', opacity: 0.45 }} title="Bientôt disponible">
-        Combat
-      </button>
-      <button disabled className="btn-secondary" style={{ fontSize: '13px', opacity: 0.45 }} title="Bientôt disponible">
-        Map
-      </button>
-    </nav>
-  )}
-</div>
+                        <button
+                          onClick={() => setMainTab('items')}
+                          className={mainTab === 'items' ? "btn-primary" : "btn-secondary"}
+                          style={{ fontSize: '13px' }}
+                        >
+                          Objets
+                        </button>
 
-                {/* BLOC DROITE : MENU UTILISATEUR COLLÉ À DROITE */}
-                <div style={{ marginLeft: 'auto' }}>
-                  <UserMenu user={user} userRole={userRole} />
-                </div>
-              </header>
+                        {/* FUTURS ONGLETS */}
+                        <button disabled className="btn-secondary" style={{ fontSize: '13px', opacity: 0.45 }} title="Bientôt disponible">
+                          PNJ
+                        </button>
+                        <button disabled className="btn-secondary" style={{ fontSize: '13px', opacity: 0.45 }} title="Bientôt disponible">
+                          Combat
+                        </button>
+                        <button disabled className="btn-secondary" style={{ fontSize: '13px', opacity: 0.45 }} title="Bientôt disponible">
+                          Map
+                        </button>
+                      </nav>
+                    )}
+                  </div>
 
-              <main style={{ padding: '24px 40px' }}>
-                {userRole === 'mj' ? (
-                  <DashboardMJ user={user} activeMainTab={mainTab} />
-                ) : (
-                  <DashboardPlayer user={user} />
-                )}
-              </main>
-            </div>
-          )
-        } />
-         
+                  {/* BLOC DROITE : MENU UTILISATEUR COLLÉ À DROITE */}
+                  <div style={{ marginLeft: 'auto' }}>
+                    <UserMenu user={user} userRole={userRole} />
+                  </div>
+                </header>
+
+                <main style={{ padding: '24px 40px' }}>
+                  {userRole === 'mj' ? (
+                    <DashboardMJ user={user} activeMainTab={mainTab} />
+                  ) : (
+                    <DashboardPlayer user={user} />
+                  )}
+                </main>
+              </div>
+            )
+          }
+        />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

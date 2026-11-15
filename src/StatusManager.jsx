@@ -3,12 +3,12 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
 const PRESET_STATUSES = [
-  { label: '🤢 Empoisonné', color: '#38a169' },
-  { label: '💫 Étourdi', color: '#d69e2e' },
-  { label: '🔥 En feu', color: '#dd6b20' },
-  { label: '🩸 Saignement', color: '#e53e3e' },
-  { label: '✨ Béni', color: '#3182ce' },
-  { label: '💤 Inconscient', color: '#805ad5' }
+  { label: 'Empoisonné', color: '#38a169' },
+  { label: 'Étourdi', color: '#d69e2e' },
+  { label: 'Brûlé', color: '#dd6b20' },
+  { label: 'Saignement', color: '#e53e3e' },
+  { label: 'Sommeil', color: '#3182ce' },
+  { label: 'Inconscient', color: '#805ad5' }
 ];
 
 export default function StatusManager({ characterId, statuses = [], isMJ }) {

@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import ItemForm, { getItemBaseShape } from './ItemForm';
+import { resolveAssetUrl } from './presets';
 
 export default function ItemBank({ mjUid, players = [] }) {
   const [bankItems, setBankItems] = useState([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-
   const [hoveredItem, setHoveredItem] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
@@ -52,7 +52,6 @@ export default function ItemBank({ mjUid, players = [] }) {
     } else {
       await saveBank([...bankItems, newItem]);
     }
-
     setShowCreateForm(false);
   };
 
@@ -164,18 +163,16 @@ export default function ItemBank({ mjUid, players = [] }) {
                   justifyContent: 'center'
                 }}
               >
-                {item.iconUrl && (
-                  <img
-                    src={item.iconUrl}
-                    alt={item.name}
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = '/assets/jdr-bag.jpg';
-                    }}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                  />
-                )}
+                <img
+                  src={resolveAssetUrl(item.iconUrl)}
+                  alt={item.name}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = './assets/jdr-bag.jpg';
+                  }}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
                 <span style={{ position: 'absolute', top: '2px', left: '2px', background: 'var(--accent)', color: '#fff', fontSize: '9px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', zIndex: 1 }}>
                   {item.width}x{item.height}
                 </span>
@@ -194,7 +191,6 @@ export default function ItemBank({ mjUid, players = [] }) {
                     ))}
                   </select>
                 )}
-
                 <button
                   onClick={() => {
                     setEditingItem(item);
@@ -239,13 +235,11 @@ export default function ItemBank({ mjUid, players = [] }) {
           <span style={{ fontSize: '10px', color: 'var(--text)', display: 'block', marginBottom: '6px' }}>
             Dimensions : {hoveredItem.width} x {hoveredItem.height} cases
           </span>
-
           {hoveredItem.effect && (
             <div style={{ color: '#48bb78', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
               + {hoveredItem.effect}
             </div>
           )}
-
           {hoveredItem.description && (
             <p style={{ color: 'var(--text)', fontSize: '11px', margin: 0, lineHeight: '1.3' }}>
               {hoveredItem.description}
@@ -262,7 +256,6 @@ function getItemActiveOffsets(item) {
   const h = item.height || 1;
   const rawShape = getItemBaseShape(item);
   const rot = (item.rotation ?? (item.isRotated ? 1 : 0)) % 4;
-
   const offsets = [];
   for (let r = 0; r < h; r++) {
     for (let c = 0; c < w; c++) {
@@ -281,7 +274,6 @@ function getItemActiveOffsets(item) {
 
 function findFreeSlot(inventory, gridW, gridH, newItem) {
   const occupied = new Set();
-
   inventory.forEach(item => {
     const startSlot = item.slotIndex ?? 0;
     const oX = startSlot % gridW;
@@ -311,7 +303,6 @@ function findFreeSlot(inventory, gridW, gridH, newItem) {
         break;
       }
     }
-
     if (canFit) return slot;
   }
   return -1;

@@ -15,8 +15,6 @@ function App() {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Onglet global actif pour le MJ : 'players' | 'items' | 'pnj' | 'combat' | 'map'
   const [mainTab, setMainTab] = useState('players');
 
   useEffect(() => {
@@ -54,70 +52,54 @@ function App() {
               <AdminDashboard currentUser={user} />
             ) : (
               <div>
-                {/* HEADER DE NAVIGATION GLOBAL */}
-                <header
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '12px 24px',
-                    borderBottom: '1px solid var(--border)',
-                    background: 'var(--code-bg)',
-                    width: '100%',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  {/* BLOC GAUCHE : LOGO, TITRE ET ONGLETS */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <header className="app-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <img
-                        src="/assets/logo.png"
+                        src="./assets/logo.png"
                         alt="JDR Manager Logo"
-                        style={{ height: '32px', width: '32px', objectFit: 'contain' }}
+                        style={{ height: '30px', width: '30px', objectFit: 'contain' }}
                       />
-                      <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                      <h2 style={{ margin: 0, fontSize: '17px', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
                         JDR Manager
                       </h2>
                     </div>
 
                     {userRole === 'mj' && (
-                      <nav style={{ display: 'flex', gap: '6px' }}>
+                      <nav style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         <button
                           onClick={() => setMainTab('players')}
                           className={mainTab === 'players' ? "btn-primary" : "btn-secondary"}
-                          style={{ fontSize: '13px' }}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
                         >
                           Joueurs
                         </button>
-
                         <button
                           onClick={() => setMainTab('items')}
                           className={mainTab === 'items' ? "btn-primary" : "btn-secondary"}
-                          style={{ fontSize: '13px' }}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
                         >
                           Objets
                         </button>
-
-                        {/* FUTURS ONGLETS */}
-                        <button disabled className="btn-secondary" style={{ fontSize: '13px', opacity: 0.45 }} title="Bientôt disponible">
+                        <button disabled className="btn-secondary" style={{ fontSize: '12px', padding: '5px 10px', opacity: 0.45 }} title="Bientôt disponible">
                           PNJ
                         </button>
-                        <button disabled className="btn-secondary" style={{ fontSize: '13px', opacity: 0.45 }} title="Bientôt disponible">
+                        <button disabled className="btn-secondary" style={{ fontSize: '12px', padding: '5px 10px', opacity: 0.45 }} title="Bientôt disponible">
                           Combat
                         </button>
-                        <button disabled className="btn-secondary" style={{ fontSize: '13px', opacity: 0.45 }} title="Bientôt disponible">
+                        <button disabled className="btn-secondary" style={{ fontSize: '12px', padding: '5px 10px', opacity: 0.45 }} title="Bientôt disponible">
                           Map
                         </button>
                       </nav>
                     )}
                   </div>
 
-                  {/* BLOC DROITE : MENU UTILISATEUR COLLÉ À DROITE */}
                   <div style={{ marginLeft: 'auto' }}>
                     <UserMenu user={user} userRole={userRole} />
                   </div>
                 </header>
 
-                <main style={{ padding: '24px 40px' }}>
+                <main className="app-main">
                   {userRole === 'mj' ? (
                     <DashboardMJ user={user} activeMainTab={mainTab} />
                   ) : (

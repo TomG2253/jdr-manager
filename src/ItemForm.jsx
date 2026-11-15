@@ -60,7 +60,7 @@ export default function ItemForm({
     e.preventDefault();
     if (!formData.name.trim()) return;
 
-    const finalIconUrl = formData.iconUrl.trim() || ITEM_PRESETS[0]?.url || '/assets/jdr-bag.jpg';
+    const finalIconUrl = formData.iconUrl.trim() || ITEM_PRESETS[0]?.url || './assets/jdr-bag.jpg';
     const itemPayload = {
       ...(initialItem || {}),
       id: initialItem?.id || crypto.randomUUID(),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -19,7 +19,7 @@ const calculateTotalSpent = (startVal, currentVal, isNative) => {
   return cost;
 };
 
-// --- LIGNE DE COMPÉTENCE (IDENTIQUE MJ / JOUEUR) ---
+// --- LIGNE DE COMPÉTENCE (RESPONSIVE PC / MOBILE) ---
 const SkillRow = ({
   skill,
   index,
@@ -39,9 +39,9 @@ const SkillRow = ({
   const floor = skill.lockedValue ?? skill.baseValue;
   const maxLimit = Math.min(skill.limit, 90);
 
-  let barColor = '#48bb78'; // Vert (1 PC)
-  if (nextCost === 2) barColor = '#d69e2e'; // Jaune (2 PC)
-  if (nextCost === 3 || skill.currentValue >= 90) barColor = '#e53e3e'; // Rouge (3 PC ou max)
+  let barColor = '#48bb78';
+  if (nextCost === 2) barColor = '#d69e2e';
+  if (nextCost === 3 || skill.currentValue >= 90) barColor = '#e53e3e';
 
   const lockedColor = 'var(--bg)';
   const availableColor = 'var(--border)';
@@ -54,23 +54,13 @@ const SkillRow = ({
 
   return (
     <div
+      className="skill-row"
       draggable={isDraggable && canReorder}
       onDragStart={(e) => canReorder && onDragStart(e, index)}
       onDragOver={(e) => canReorder && onDragOver(e, index)}
       onDrop={(e) => canReorder && onDrop(e, index)}
       onDragEnd={() => setIsDraggable(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        padding: '8px 12px',
-        background: 'var(--code-bg)',
-        border: '1px solid var(--border)',
-        borderRadius: '6px',
-        fontSize: '13px'
-      }}
     >
-      {/* Poignée Drag & Drop ::: */}
       {canReorder && (
         <div
           title="Maintenir et glisser pour réordonner"
@@ -93,8 +83,7 @@ const SkillRow = ({
         </div>
       )}
 
-      {/* Nom, Badges & Métadonnées */}
-      <div style={{ width: '215px', minWidth: '170px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+      <div className="skill-row-info">
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 'bold', color: 'var(--text-h)' }}>{skill.name}</span>
           <span
@@ -123,65 +112,64 @@ const SkillRow = ({
             </span>
           )}
         </div>
-
         <div style={{ fontSize: '10px', color: 'var(--text)', opacity: 0.85 }}>
           Base : {skill.baseValue} | Bloqué : {floor} | Max : {skill.limit}
         </div>
       </div>
 
-      {/* Jauge fine colorée */}
-      <input
-        type="range"
-        className="skill-slider"
-        min={0}
-        max={100}
-        value={skill.currentValue}
-        onChange={(e) => onUpdateValue(skill.id, parseInt(e.target.value, 10))}
-        disabled={!canInteract}
-        style={{
-          flex: 1,
-          minWidth: '100px',
-          height: '6px',
-          background: trackBackground,
-          cursor: canInteract ? 'pointer' : 'not-allowed'
-        }}
-      />
+      <div className="skill-row-controls">
+        <input
+          type="range"
+          className="skill-slider"
+          min={0}
+          max={100}
+          value={skill.currentValue}
+          onChange={(e) => onUpdateValue(skill.id, parseInt(e.target.value, 10))}
+          disabled={!canInteract}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            width: '100%',
+            height: '6px',
+            background: trackBackground,
+            cursor: canInteract ? 'pointer' : 'not-allowed'
+          }}
+        />
 
-      {/* Valeur numérique */}
-      <div style={{ fontWeight: 'bold', color: barColor, width: '30px', textAlign: 'right', fontSize: '15px' }}>
-        {skill.currentValue}
-      </div>
-
-      {/* Boutons compacts réservés au MJ */}
-      {isMJ && (
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={() => onEditClick(skill)}
-            title="Modifier la compétence"
-            className="btn-secondary"
-            style={{ fontSize: '11px', padding: '2px 7px' }}
-          >
-            Editer
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(skill.id)}
-            title="Supprimer"
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#e53e3e',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              padding: '2px 5px'
-            }}
-          >
-            X
-          </button>
+        <div style={{ fontWeight: 'bold', color: barColor, width: '28px', textAlign: 'right', fontSize: '15px', flexShrink: 0 }}>
+          {skill.currentValue}
         </div>
-      )}
+
+        {isMJ && (
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => onEditClick(skill)}
+              title="Modifier la compétence"
+              className="btn-secondary"
+              style={{ fontSize: '11px', padding: '2px 7px' }}
+            >
+              Editer
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(skill.id)}
+              title="Supprimer"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#e53e3e',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                padding: '2px 5px'
+              }}
+            >
+              X
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -199,6 +187,8 @@ export default function SkillManager({
   const [skills, setSkills] = useState(initialSkills);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState(null);
+  const [importFeedback, setImportFeedback] = useState(null);
+  const fileInputRef = useRef(null);
 
   // Filtres et tris
   const [searchQuery, setSearchQuery] = useState('');
@@ -249,7 +239,6 @@ export default function SkillManager({
       const charRef = doc(db, 'characters', characterId);
       const payload = { ...extraFields };
       if (updatedSkills !== undefined) payload.skills = updatedSkills;
-
       await updateDoc(charRef, payload);
       setHasUnsavedChanges(false);
     } catch (error) {
@@ -257,7 +246,7 @@ export default function SkillManager({
     }
   };
 
-  // Jauge soumise exactement aux mêmes règles PC / plancher / plafond pour MJ et Joueur
+  // Jauge soumise aux mêmes règles PC / plancher / plafond pour MJ et Joueur
   const handleUpdateValue = (skillId, targetValue) => {
     if (!canInteract) return;
 
@@ -321,7 +310,6 @@ export default function SkillManager({
     if (!isMJ) return;
 
     if (!isSkillsLocked) {
-      // Verrouillage : fige le palier atteint comme nouveau plancher et remet le budget de phase à 0
       const lockedSkills = skills.map((s) => ({
         ...s,
         lockedValue: s.currentValue
@@ -332,7 +320,6 @@ export default function SkillManager({
         totalPC: 0
       });
     } else {
-      // Déverrouillage : ouvre une nouvelle phase d'XP à 0 / 0 PC restants
       saveToFirebase(undefined, {
         isSkillsLocked: false,
         totalPC: 0
@@ -348,6 +335,139 @@ export default function SkillManager({
   const handleSetTotalPC = (value) => {
     const newPC = Math.max(0, value);
     saveToFirebase(undefined, { totalPC: newPC });
+  };
+
+  // --- IMPORT / EXPORT .TXT (MJ UNIQUEMENT) ---
+  const handleExportTxt = () => {
+    if (!isMJ) return;
+    const lines = skills.map((s) => {
+      const nativeFlag = s.isNative ? 1 : 0;
+      const baseVal = s.baseValue ?? 0;
+      const lockedVal = s.lockedValue ?? baseVal;
+      const maxVal = s.limit ?? 80;
+      const cat = s.category || 'Force';
+      return `${s.name} - ${cat} - ${nativeFlag} - ${baseVal} - ${lockedVal} - ${maxVal}`;
+    });
+
+    const content = lines.join('\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `competences-${characterId || 'personnage'}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportTxtFile = (e) => {
+    if (!isMJ) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const rawText = String(event.target?.result || '');
+      const lines = rawText.split(/\r?\n/);
+
+      const updatedSkills = [...skills];
+      const updatedCategories = [...allCategories];
+      let addedCount = 0;
+      let updatedCount = 0;
+      const invalidLines = [];
+
+      lines.forEach((rawLine, lineIdx) => {
+        const line = rawLine.trim();
+        if (!line || line.startsWith('#') || line.startsWith('//')) return;
+
+        // Découpage sur " - " (ou "-" entouré d'espaces) en lisant les 5 derniers champs depuis la fin
+        const parts = line.split(/\s+-\s+/);
+        if (parts.length < 6) {
+          invalidLines.push(lineIdx + 1);
+          return;
+        }
+
+        const rawMax = parts[parts.length - 1];
+        const rawLocked = parts[parts.length - 2];
+        const rawBase = parts[parts.length - 3];
+        const rawNative = parts[parts.length - 4].toLowerCase();
+        const category = parts[parts.length - 5].trim() || 'Force';
+        const name = parts.slice(0, parts.length - 5).join(' - ').trim();
+
+        const baseVal = parseInt(rawBase, 10);
+        const lockedVal = parseInt(rawLocked, 10);
+        const maxVal = parseInt(rawMax, 10);
+
+        if (!name || isNaN(baseVal) || isNaN(lockedVal) || isNaN(maxVal)) {
+          invalidLines.push(lineIdx + 1);
+          return;
+        }
+
+        const isNative = rawNative === '1' || rawNative === 'true' || rawNative === 'oui' || rawNative === 'native';
+        const cleanBase = Math.max(0, Math.min(90, baseVal));
+        const cleanLimit = Math.max(cleanBase, Math.min(90, maxVal));
+        const cleanLocked = Math.max(cleanBase, Math.min(cleanLimit, lockedVal));
+
+        if (!updatedCategories.includes(category)) {
+          updatedCategories.push(category);
+        }
+
+        const existingIndex = updatedSkills.findIndex(
+          (s) => (s.name || '').trim().toLowerCase() === name.toLowerCase()
+        );
+
+        if (existingIndex !== -1) {
+          const existing = updatedSkills[existingIndex];
+          const adjustedCurrent = Math.max(cleanLocked, Math.min(cleanLimit, existing.currentValue ?? cleanLocked));
+          updatedSkills[existingIndex] = {
+            ...existing,
+            name,
+            category,
+            isNative,
+            baseValue: cleanBase,
+            lockedValue: cleanLocked,
+            currentValue: adjustedCurrent,
+            limit: cleanLimit
+          };
+          updatedCount += 1;
+        } else {
+          updatedSkills.push({
+            id: crypto.randomUUID(),
+            name,
+            category,
+            isNative,
+            baseValue: cleanBase,
+            lockedValue: cleanLocked,
+            currentValue: cleanLocked,
+            limit: cleanLimit
+          });
+          addedCount += 1;
+        }
+      });
+
+      if (addedCount > 0 || updatedCount > 0) {
+        setSkills(updatedSkills);
+        saveToFirebase(updatedSkills, { skillCategories: updatedCategories });
+      }
+
+      const summaryParts = [];
+      if (addedCount > 0) summaryParts.push(`${addedCount} ajoutée(s)`);
+      if (updatedCount > 0) summaryParts.push(`${updatedCount} mise(s) à jour`);
+      if (invalidLines.length > 0) summaryParts.push(`lignes ignorées : ${invalidLines.join(', ')}`);
+
+      setImportFeedback({
+        type: addedCount + updatedCount > 0 ? 'success' : 'error',
+        text: summaryParts.length > 0
+          ? `Import terminé (${summaryParts.join(' | ')}).`
+          : 'Aucune compétence valide trouvée. Format attendu : Nom - Catégorie - 1/0 - Base - Bloqué - Max'
+      });
+
+      setTimeout(() => setImportFeedback(null), 6000);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    reader.readAsText(file, 'UTF-8');
   };
 
   // --- CRÉATION & ÉDITION D'UNE COMPÉTENCE (MJ) ---
@@ -394,7 +514,6 @@ export default function SkillManager({
     if (editingSkill) {
       const updated = skills.map((s) => {
         if (s.id !== editingSkill.id) return s;
-        // Ajuste currentValue uniquement s'il sort des nouvelles bornes [cleanLocked, cleanLimit]
         const adjustedCurrent = Math.max(cleanLocked, Math.min(cleanLimit, s.currentValue));
         return {
           ...s,
@@ -587,12 +706,57 @@ export default function SkillManager({
               {isSkillsLocked ? 'Déverrouiller' : 'Verrouiller'}
             </button>
 
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,text/plain"
+              onChange={handleImportTxtFile}
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Importer un fichier .txt (Nom - Catégorie - 1/0 - Base - Bloqué - Max)"
+              className="btn-secondary"
+              style={{ fontSize: '12px', padding: '4px 10px' }}
+            >
+              Importer .txt
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportTxt}
+              disabled={skills.length === 0}
+              title="Exporter toutes les compétences en .txt"
+              className="btn-secondary"
+              style={{ fontSize: '12px', padding: '4px 10px' }}
+            >
+              Exporter .txt
+            </button>
+
             <button type="button" onClick={openCreateForm} className="btn-primary" style={{ fontSize: '12px', padding: '4px 10px' }}>
               {showAddSkill ? 'Fermer' : '+ Compétence'}
             </button>
           </div>
         )}
       </div>
+
+      {/* RETOUR D'IMPORT .TXT */}
+      {isMJ && importFeedback && (
+        <div
+          style={{
+            padding: '10px 12px',
+            marginBottom: '12px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            background: importFeedback.type === 'error' ? 'rgba(229, 62, 62, 0.12)' : 'rgba(72, 187, 120, 0.12)',
+            border: `1px solid ${importFeedback.type === 'error' ? '#e53e3e' : '#48bb78'}`,
+            color: importFeedback.type === 'error' ? '#fc8181' : '#68d391'
+          }}
+        >
+          {importFeedback.text}
+        </div>
+      )}
 
       {/* FORMULAIRE CRÉATION OU ÉDITION D'UNE COMPÉTENCE (MJ) */}
       {isMJ && (showAddSkill || editingSkill) && (
@@ -751,7 +915,6 @@ export default function SkillManager({
           >
             Toutes ({skills.length})
           </button>
-
           {allCategories.map((cat) => (
             <button
               key={cat}

@@ -21,6 +21,95 @@ body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
 
+/* --- RESPONSIVE MOBILE --- */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--code-bg);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.app-main {
+  padding: 24px 40px;
+  box-sizing: border-box;
+}
+
+.character-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  background-color: var(--bg);
+  box-shadow: var(--shadow);
+  position: relative;
+  box-sizing: border-box;
+}
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.skill-row-info {
+  width: 215px;
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.skill-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    padding: 10px 12px;
+  }
+
+  .app-main {
+    padding: 12px 10px;
+  }
+
+  .character-card {
+    padding: 14px 12px;
+    border-radius: 10px;
+  }
+
+  .skill-row {
+    flex-wrap: wrap;
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .skill-row-info {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 calc(100% - 30px);
+  }
+
+  .skill-row-controls {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+}
+
 /* --- BOUTONS PRINCIPAUX (.btn-primary) --- */
 .btn-primary {
   background-color: #6d28d9 !important;

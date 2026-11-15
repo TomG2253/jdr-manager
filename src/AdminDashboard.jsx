@@ -19,6 +19,7 @@ import {
 import { db, secondaryAuth, auth } from './firebase';
 import ImageInput from './ImageInput';
 import { formatLoginEmail, formatAuthPassword } from './Login';
+import { resolveAssetUrl } from './presets';
 
 export default function AdminDashboard({ currentUser }) {
   const [users, setUsers] = useState([]);
@@ -56,7 +57,6 @@ export default function AdminDashboard({ currentUser }) {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setFeedback({ type: '', text: '' });
-
     const cleanUsername = username.trim();
     const cleanPassword = password.trim();
 
@@ -64,7 +64,6 @@ export default function AdminDashboard({ currentUser }) {
       setFeedback({ type: 'error', text: 'Identifiant et mot de passe requis.' });
       return;
     }
-
     if (role === 'pj' && !selectedMjUid) {
       setFeedback({ type: 'error', text: 'Veuillez rattacher ce joueur à un MJ / une campagne.' });
       return;
@@ -79,11 +78,10 @@ export default function AdminDashboard({ currentUser }) {
       const newUid = cred.user.uid;
       await signOut(secondaryAuth);
 
-      const finalAvatar = avatarUrl.trim() || '/assets/jdr-bag.jpg';
+      const finalAvatar = avatarUrl.trim() || './assets/jdr-bag.jpg';
 
       if (role === 'mj') {
         const finalCampaignName = campaignName.trim() || `Campagne de ${cleanUsername}`;
-
         await setDoc(doc(db, 'users', newUid), {
           uid: newUid,
           username: cleanUsername,
@@ -104,7 +102,6 @@ export default function AdminDashboard({ currentUser }) {
         });
       } else {
         const chosenMj = mjList.find((m) => m.uid === selectedMjUid);
-
         await setDoc(doc(db, 'users', newUid), {
           uid: newUid,
           username: cleanUsername,
@@ -184,7 +181,7 @@ export default function AdminDashboard({ currentUser }) {
     try {
       const updates = {
         username: editForm.username.trim(),
-        avatarUrl: editForm.avatarUrl.trim() || '/assets/jdr-bag.jpg'
+        avatarUrl: editForm.avatarUrl.trim() || './assets/jdr-bag.jpg'
       };
 
       if (editingUser.role === 'mj') {
@@ -195,7 +192,6 @@ export default function AdminDashboard({ currentUser }) {
       if (editingUser.role === 'pj' && editForm.mjUid) {
         updates.mjUid = editForm.mjUid;
         updates.campaignId = editForm.mjUid;
-
         const charQuery = query(collection(db, 'characters'), where('ownerUid', '==', editingUser.uid));
         const charSnap = await getDocs(charQuery);
         for (const charDoc of charSnap.docs) {
@@ -210,14 +206,31 @@ export default function AdminDashboard({ currentUser }) {
       const cleanNewPass = editForm.newPassword.trim();
       if (cleanNewPass) {
         if (editingUser.managedPassword) {
-          const cred = await signInWithEmailAndPassword(
-            secondaryAuth,
-            editingUser.email,
-            formatAuthPassword(editingUser.managedPassword)
-          );
-          await updatePassword(cred.user, formatAuthPassword(cleanNewPass));
-          await signOut(secondaryAuth);
-          updates.managedPassword = cleanNewPass;
+          try {
+            let cred;
+            try {
+              cred = await signInWithEmailAndPassword(
+                secondaryAuth,
+                editingUser.email,
+                formatAuthPassword(editingUser.managedPassword)
+              );
+            } catch (firstErr) {
+              if (firstErr.code === 'auth/wrong-password' || firstErr.code === 'auth/invalid-credential') {
+                // Secours pour les anciens comptes créés sans le suffixe _JDR_
+                cred = await signInWithEmailAndPassword(
+                  secondaryAuth,
+                  editingUser.email,
+                  editingUser.managedPassword.trim()
+                );
+              } else {
+                throw firstErr;
+              }
+            }
+            await updatePassword(cred.user, formatAuthPassword(cleanNewPass));
+            updates.managedPassword = cleanNewPass;
+          } finally {
+            await signOut(secondaryAuth);
+          }
         } else {
           setFeedback({ type: 'error', text: 'Ancien mot de passe inconnu pour ce compte hérité.' });
           setLoading(false);
@@ -237,12 +250,14 @@ export default function AdminDashboard({ currentUser }) {
   };
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '16px', boxSizing: 'border-box' }}>
       {/* En-tête Admin */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '10px',
         padding: '16px 20px',
         background: 'var(--code-bg)',
         border: '1px solid var(--border)',
@@ -299,7 +314,6 @@ export default function AdminDashboard({ currentUser }) {
             onChange={(e) => setUsername(e.target.value)}
             style={{ flex: 1, minWidth: '180px', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)' }}
           />
-
           <input
             required
             type="text"
@@ -308,7 +322,6 @@ export default function AdminDashboard({ currentUser }) {
             onChange={(e) => setPassword(e.target.value)}
             style={{ flex: 1, minWidth: '180px', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)' }}
           />
-
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
@@ -400,7 +413,6 @@ export default function AdminDashboard({ currentUser }) {
               onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
               style={{ flex: 1, minWidth: '180px', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }}
             />
-
             <input
               type="text"
               placeholder="Nouveau mot de passe (laisser vide si inchangé)"
@@ -485,10 +497,10 @@ export default function AdminDashboard({ currentUser }) {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <img
-                    src={u.avatarUrl || '/assets/jdr-bag.jpg'}
+                    src={resolveAssetUrl(u.avatarUrl)}
                     alt={u.username}
                     referrerPolicy="no-referrer"
-                    onError={(e) => { e.target.onerror = null; e.target.src = '/assets/jdr-bag.jpg'; }}
+                    onError={(e) => { e.target.onerror = null; e.target.src = './assets/jdr-bag.jpg'; }}
                     style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--accent-border)' }}
                   />
                   <div>
@@ -505,7 +517,6 @@ export default function AdminDashboard({ currentUser }) {
                         {u.role.toUpperCase()}
                       </span>
                     </div>
-
                     <div style={{ fontSize: '12px', color: 'var(--text)', marginTop: '2px' }}>
                       {u.role === 'mj'
                         ? `Campagne : ${u.campaignName || 'Sans nom'}`

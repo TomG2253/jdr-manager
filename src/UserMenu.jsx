@@ -10,6 +10,7 @@ import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import ImageInput from './ImageInput';
 import { formatLoginEmail, formatAuthPassword } from './Login';
+import { resolveAssetUrl } from './presets';
 
 export default function UserMenu({ user, userRole }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,7 +20,6 @@ export default function UserMenu({ user, userRole }) {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [managedPassword, setManagedPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
 
@@ -48,7 +48,6 @@ export default function UserMenu({ user, userRole }) {
   const handleSaveAccount = async (e) => {
     e.preventDefault();
     setStatusMsg({ type: '', text: '' });
-
     const cleanUsername = username.trim();
     const cleanNewPassword = newPassword.trim();
 
@@ -61,7 +60,7 @@ export default function UserMenu({ user, userRole }) {
     try {
       const firestoreUpdates = {
         username: cleanUsername,
-        avatarUrl: avatarUrl.trim() || '/assets/jdr-bag.jpg'
+        avatarUrl: avatarUrl.trim() || './assets/jdr-bag.jpg'
       };
 
       // 1. Mise à jour de l'identifiant de connexion (@jdr.com) si modifié
@@ -146,10 +145,10 @@ export default function UserMenu({ user, userRole }) {
           justifyContent: 'center'
         }}>
           <img
-            src={avatarUrl || '/assets/jdr-bag.jpg'}
+            src={resolveAssetUrl(avatarUrl)}
             alt={username}
             referrerPolicy="no-referrer"
-            onError={(e) => { e.target.onerror = null; e.target.src = '/assets/jdr-bag.jpg'; }}
+            onError={(e) => { e.target.onerror = null; e.target.src = './assets/jdr-bag.jpg'; }}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         </div>
@@ -195,7 +194,6 @@ export default function UserMenu({ user, userRole }) {
           >
             Mon compte
           </button>
-
           <button
             onClick={() => signOut(auth)}
             style={{

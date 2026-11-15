@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import ItemForm, { getItemBaseShape } from './ItemForm';
+import { resolveAssetUrl } from './presets';
 
 export default function InventoryManager({
   characterId,
@@ -14,7 +15,6 @@ export default function InventoryManager({
 }) {
   const [editingItem, setEditingItem] = useState(null);
   const [draggedInfo, setDraggedInfo] = useState(null);
-
   const [hoveredItem, setHoveredItem] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
@@ -28,14 +28,12 @@ export default function InventoryManager({
     const h = item.height || 1;
     const rawShape = getItemBaseShape(item);
     const rot = (item.rotation ?? (item.isRotated ? 1 : 0)) % 4;
-
     const offsets = [];
     for (let r = 0; r < h; r++) {
       for (let c = 0; c < w; c++) {
         if (rawShape[r * w + c] === 1) {
           let rx = c;
           let ry = r;
-
           if (rot === 1) {
             rx = -r;
             ry = c;
@@ -46,7 +44,6 @@ export default function InventoryManager({
             rx = r;
             ry = -c;
           }
-
           offsets.push({ rx, ry });
         }
       }
@@ -80,7 +77,6 @@ export default function InventoryManager({
       const oX = otherSlot % gridW;
       const oY = Math.floor(otherSlot / gridW);
       const otherOffsets = getItemActiveOffsets(other);
-
       otherOffsets.forEach(({ rx, ry }) => {
         const gx = oX + rx;
         const gy = oY + ry;
@@ -93,16 +89,13 @@ export default function InventoryManager({
     for (const { rx, ry } of offsets) {
       const targetX = startX + rx;
       const targetY = startY + ry;
-
       if (targetX < 0 || targetX >= gridW || targetY < 0 || targetY >= gridH) {
         return false;
       }
-
       if (occupiedSlots.has(targetY * gridW + targetX)) {
         return false;
       }
     }
-
     return true;
   };
 
@@ -114,7 +107,6 @@ export default function InventoryManager({
     // 1. Sens horaire (+90 deg)
     const rotCw = (currentRot + 1) % 4;
     const itemCw = { ...item, rotation: rotCw, isRotated: rotCw % 2 === 1 };
-
     if (canPlaceItem(itemCw, originSlot, items, item.id)) {
       const updatedInventory = items.map(i => i.id === item.id ? itemCw : i);
       try {
@@ -128,7 +120,6 @@ export default function InventoryManager({
     // 2. Sens anti-horaire (-90 deg) si bloqué
     const rotCcw = (currentRot + 3) % 4;
     const itemCcw = { ...item, rotation: rotCcw, isRotated: rotCcw % 2 === 1 };
-
     if (canPlaceItem(itemCcw, originSlot, items, item.id)) {
       const updatedInventory = items.map(i => i.id === item.id ? itemCcw : i);
       try {
@@ -144,10 +135,8 @@ export default function InventoryManager({
     const itemSlot = item.slotIndex ?? 0;
     const itemX = itemSlot % gridW;
     const itemY = Math.floor(itemSlot / gridW);
-
     const grabDx = clickedCellX - itemX;
     const grabDy = clickedCellY - itemY;
-
     setDraggedInfo({ item, grabDx, grabDy });
     e.dataTransfer.setData('text/plain', item.id);
   };
@@ -168,20 +157,17 @@ export default function InventoryManager({
       const updatedInventory = items.map(i =>
         i.id === item.id ? { ...i, slotIndex: newOriginSlot } : i
       );
-
       try {
         await updateDoc(doc(db, "characters", characterId), { inventory: updatedInventory });
       } catch (err) {
         console.error("Erreur déplacement objet :", err);
       }
     }
-
     setDraggedInfo(null);
   };
 
   const handleSaveEdit = async (updatedItem) => {
     if (!characterId || !isMJ) return;
-
     const updatedInventory = items.map(i => i.id === updatedItem.id ? updatedItem : i);
     try {
       await updateDoc(doc(db, "characters", characterId), { inventory: updatedInventory });
@@ -206,7 +192,7 @@ export default function InventoryManager({
 
   return (
     <div style={{ marginTop: '16px', position: 'relative' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
         <strong style={{ fontSize: '14px', color: 'var(--text-h)' }}>Inventaire</strong>
         {isMJ && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text)' }}>
@@ -245,6 +231,9 @@ export default function InventoryManager({
           borderRadius: '10px',
           border: '1px solid var(--border)',
           width: 'fit-content',
+          maxWidth: '100%',
+          overflowX: 'auto',
+          boxSizing: 'border-box',
           position: 'relative'
         }}
       >
@@ -257,7 +246,6 @@ export default function InventoryManager({
             const oX = startSlot % gridW;
             const oY = Math.floor(startSlot / gridW);
             const offsets = getItemActiveOffsets(item);
-
             return offsets.some(({ rx, ry }) => oX + rx === cellX && oY + ry === cellY);
           });
 
@@ -296,10 +284,10 @@ export default function InventoryManager({
                   {isOrigin && (
                     <div style={{ position: 'absolute', inset: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <img
-                        src={coveringItem.iconUrl || '/assets/jdr-bag.jpg'}
+                        src={resolveAssetUrl(coveringItem.iconUrl)}
                         alt={coveringItem.name}
                         referrerPolicy="no-referrer"
-                        onError={(e) => { e.target.onerror = null; e.target.src = '/assets/jdr-bag.jpg'; }}
+                        onError={(e) => { e.target.onerror = null; e.target.src = './assets/jdr-bag.jpg'; }}
                         style={{
                           width: '100%',
                           height: '100%',
@@ -332,7 +320,6 @@ export default function InventoryManager({
                       >
                         R
                       </button>
-
                       {isMJ && (
                         <>
                           <button
@@ -383,13 +370,11 @@ export default function InventoryManager({
           <span style={{ fontSize: '10px', color: 'var(--text)', display: 'block', marginBottom: '6px' }}>
             Dimensions : {hoveredItem.width || 1} x {hoveredItem.height || 1} cases
           </span>
-
           {hoveredItem.effect && (
             <div style={{ color: '#48bb78', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
               + {hoveredItem.effect}
             </div>
           )}
-
           {hoveredItem.description && (
             <p style={{ color: 'var(--text)', fontSize: '11px', margin: 0, lineHeight: '1.3' }}>
               {hoveredItem.description}

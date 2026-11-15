@@ -3,6 +3,7 @@ import { collection, onSnapshot, query, where, doc, getDoc } from 'firebase/fire
 import { db } from './firebase';
 import ItemBank from './ItemBank';
 import CharacterCard from './CharacterCard';
+import { resolveAssetUrl } from './presets';
 
 export default function DashboardMJ({ user, activeMainTab = 'players' }) {
   const [players, setPlayers] = useState([]);
@@ -26,7 +27,6 @@ export default function DashboardMJ({ user, activeMainTab = 'players' }) {
       const chars = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setPlayers(chars);
     });
-
     return () => unsubscribe();
   }, [user]);
 
@@ -106,12 +106,12 @@ export default function DashboardMJ({ user, activeMainTab = 'players' }) {
                     }}
                   >
                     <img
-                      src={player.avatarUrl || '/assets/jdr-bag.jpg'}
+                      src={resolveAssetUrl(player.avatarUrl)}
                       alt={player.name}
                       referrerPolicy="no-referrer"
                       onError={(e) => {
                         e.target.onerror = null;
-                        e.target.src = '/assets/jdr-bag.jpg';
+                        e.target.src = './assets/jdr-bag.jpg';
                       }}
                       style={{
                         width: '36px',

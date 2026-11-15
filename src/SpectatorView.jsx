@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import { db } from './firebase';
+import { resolveAssetUrl } from './presets';
 
 function CompactResourceBar({ label, current = 0, max = 100, color }) {
   const safeMax = Math.max(1, max);
@@ -53,7 +54,6 @@ export default function SpectatorView() {
   useEffect(() => {
     if (!mjId) return;
 
-    // 1. Écoute temps réel de la campagne
     const unsubCampaign = onSnapshot(
       doc(db, 'campaigns', mjId),
       (docSnap) => {
@@ -64,7 +64,6 @@ export default function SpectatorView() {
       (err) => console.error('Erreur écoute campagne :', err)
     );
 
-    // 2. Écoute temps réel des personnages rattachés au MJ
     const charsQuery = query(collection(db, 'characters'), where('mjUid', '==', mjId));
     const unsubChars = onSnapshot(
       charsQuery,
@@ -84,7 +83,6 @@ export default function SpectatorView() {
       }
     );
 
-    // 3. Écoute des joueurs liés pour afficher leur pseudo/PP sur la carte
     const usersQuery = query(collection(db, 'users'), where('mjUid', '==', mjId));
     const unsubUsers = onSnapshot(
       usersQuery,
@@ -120,14 +118,13 @@ export default function SpectatorView() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <img
-            src="/assets/logo.png"
+            src="./assets/logo.png"
             alt="JDR Manager"
             style={{ height: '28px', width: '28px', objectFit: 'contain' }}
           />
           <h2 style={{ margin: 0, fontSize: '17px', color: 'var(--text-h)' }}>
             {campaign?.name || 'Table en Direct'}
           </h2>
-
           <span style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -222,12 +219,12 @@ export default function SpectatorView() {
                     minWidth: 0
                   }}>
                     <img
-                      src={char.avatarUrl || '/assets/jdr-bag.jpg'}
+                      src={resolveAssetUrl(char.avatarUrl)}
                       alt={char.name}
                       referrerPolicy="no-referrer"
                       onError={(e) => {
                         e.target.onerror = null;
-                        e.target.src = '/assets/jdr-bag.jpg';
+                        e.target.src = './assets/jdr-bag.jpg';
                       }}
                       style={{
                         width: '66px',
@@ -265,10 +262,10 @@ export default function SpectatorView() {
                             padding: '1px 8px 1px 3px'
                           }}>
                             <img
-                              src={ownerUser.avatarUrl || '/assets/jdr-bag.jpg'}
+                              src={resolveAssetUrl(ownerUser.avatarUrl)}
                               alt={ownerUser.username}
                               referrerPolicy="no-referrer"
-                              onError={(e) => { e.target.onerror = null; e.target.src = '/assets/jdr-bag.jpg'; }}
+                              onError={(e) => { e.target.onerror = null; e.target.src = './assets/jdr-bag.jpg'; }}
                               style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }}
                             />
                             {ownerUser.username}
@@ -279,7 +276,7 @@ export default function SpectatorView() {
                       <div style={{ fontSize: '13px', color: 'var(--text)', marginTop: '3px' }}>
                         {subtitle || 'Aventurier'}
                         {details && (
-                          <span style={{ opacity: 0.7, fontSize: '12px' }}> — {details}</span>
+                          <span style={{ opacity: 0.7, fontSize: '12px' }}> • {details}</span>
                         )}
                       </div>
 
@@ -301,6 +298,7 @@ export default function SpectatorView() {
                               {st.label}
                             </span>
                           ))}
+
                           {traits.map((tr, idx) => {
                             const isPos = tr.type === 'positive';
                             return (

@@ -15,24 +15,23 @@ export default function StatusManager({ characterId, statuses = [], isMJ }) {
   const [customText, setCustomText] = useState('');
   const [showAddMenu, setShowAddMenu] = useState(false);
 
+  if (!isMJ && statuses.length === 0) return null;
+
   const saveStatuses = async (newStatuses) => {
     if (!characterId) return;
     try {
-      const charRef = doc(db, "characters", characterId);
+      const charRef = doc(db, 'characters', characterId);
       await updateDoc(charRef, { statuses: newStatuses });
     } catch (err) {
-      console.error("Erreur modification statuts :", err);
+      console.error('Erreur modification statuts :', err);
     }
   };
 
   const handleTogglePreset = (preset) => {
-    const exists = statuses.some(s => s.label === preset.label);
-    let updated;
-    if (exists) {
-      updated = statuses.filter(s => s.label !== preset.label);
-    } else {
-      updated = [...statuses, preset];
-    }
+    const exists = statuses.some((s) => s.label === preset.label);
+    const updated = exists
+      ? statuses.filter((s) => s.label !== preset.label)
+      : [...statuses, preset];
     saveStatuses(updated);
   };
 
@@ -46,42 +45,56 @@ export default function StatusManager({ characterId, statuses = [], isMJ }) {
 
   const handleRemove = (label) => {
     if (!isMJ) return;
-    const updated = statuses.filter(s => s.label !== label);
+    const updated = statuses.filter((s) => s.label !== label);
     saveStatuses(updated);
   };
 
   return (
-    <div style={{ marginBottom: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-        {statuses.map((st, idx) => (
-          <span 
-            key={idx}
-            onClick={() => handleRemove(st.label)}
-            title={isMJ ? "Cliquer pour retirer" : undefined}
-            style={{
-              padding: '2px 8px',
-              borderRadius: '12px',
-              fontSize: '11px',
-              fontWeight: 'bold',
-              color: '#fff',
-              backgroundColor: st.color,
-              cursor: isMJ ? 'pointer' : 'default',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            {st.label}
-            {isMJ && <span style={{ fontSize: '9px', opacity: 0.8 }}>✕</span>}
-          </span>
-        ))}
+    <div style={{ marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+        {statuses.map((st, idx) => {
+          const baseColor = st.color || '#718096';
+          return (
+            <span
+              key={idx}
+              onClick={() => handleRemove(st.label)}
+              title={isMJ ? 'Cliquer pour retirer' : undefined}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '1px 7px',
+                borderRadius: '5px',
+                fontSize: '10px',
+                fontWeight: '600',
+                lineHeight: '1.35',
+                color: '#f7fafc',
+                backgroundColor: `${baseColor}28`,
+                border: `1px solid ${baseColor}88`,
+                cursor: isMJ ? 'pointer' : 'default'
+              }}
+            >
+              <span
+                style={{
+                  width: '5px',
+                  height: '5px',
+                  borderRadius: '50%',
+                  backgroundColor: baseColor,
+                  flexShrink: 0
+                }}
+              />
+              {st.label}
+              {isMJ && <span style={{ fontSize: '9px', opacity: 0.75, marginLeft: '1px' }}>×</span>}
+            </span>
+          );
+        })}
 
         {isMJ && (
-          <button 
-            onClick={() => setShowAddMenu(!showAddMenu)} 
-            className="btn-secondary" 
-            style={{ padding: '2px 6px', fontSize: '11px', borderRadius: '12px' }}
+          <button
+            type="button"
+            onClick={() => setShowAddMenu(!showAddMenu)}
+            className="btn-secondary"
+            style={{ padding: '1px 6px', fontSize: '10px', borderRadius: '5px', lineHeight: '1.35' }}
           >
             {showAddMenu ? 'Fermer' : '+ Statut'}
           </button>
@@ -90,13 +103,25 @@ export default function StatusManager({ characterId, statuses = [], isMJ }) {
 
       {/* Menu d'ajout pour le MJ */}
       {isMJ && showAddMenu && (
-        <div style={{ marginTop: '10px', padding: '10px', background: 'var(--code-bg)', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div
+          style={{
+            marginTop: '8px',
+            padding: '10px',
+            background: 'var(--code-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}
+        >
           <span style={{ fontSize: '11px', color: 'var(--text)' }}>Raccourcis d'états :</span>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {PRESET_STATUSES.map((preset, idx) => {
-              const isActive = statuses.some(s => s.label === preset.label);
+              const isActive = statuses.some((s) => s.label === preset.label);
               return (
                 <button
+                  type="button"
                   key={idx}
                   onClick={() => handleTogglePreset(preset)}
                   style={{
@@ -116,14 +141,22 @@ export default function StatusManager({ characterId, statuses = [], isMJ }) {
           </div>
 
           <form onSubmit={handleAddCustom} style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-            <input 
-              type="text" 
-              placeholder="Autre état personnalisé..." 
-              value={customText} 
-              onChange={e => setCustomText(e.target.value)}
-              style={{ flex: 1, padding: '4px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border)' }}
+            <input
+              type="text"
+              placeholder="Autre état personnalisé..."
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '4px',
+                fontSize: '11px',
+                borderRadius: '4px',
+                border: '1px solid var(--border)'
+              }}
             />
-            <button type="submit" className="btn-primary" style={{ padding: '4px 8px', fontSize: '11px' }}>Ajouter</button>
+            <button type="submit" className="btn-primary" style={{ padding: '4px 8px', fontSize: '11px' }}>
+              Ajouter
+            </button>
           </form>
         </div>
       )}

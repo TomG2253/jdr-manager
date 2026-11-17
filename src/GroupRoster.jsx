@@ -8,29 +8,29 @@ function CompactResourceBar({ label, current = 0, max = 100, color }) {
   const percentage = Math.max(0, Math.min(100, (current / safeMax) * 100));
 
   return (
-    <div>
+    <div style={{ flex: 1, minWidth: 0 }}>
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'baseline',
-          fontSize: '11px',
+          fontSize: '10px',
           marginBottom: '3px'
         }}
       >
-        <span style={{ fontWeight: 'bold', color: 'var(--text)', letterSpacing: '0.6px' }}>
+        <span style={{ fontWeight: 'bold', color: 'var(--text)', letterSpacing: '0.5px' }}>
           {label}
         </span>
-        <span style={{ fontWeight: 'bold', color: 'var(--text-h)', fontSize: '12px' }}>
-          {current}{' '}
-          <span style={{ color: 'var(--text)', fontWeight: 'normal', fontSize: '11px' }}>
-            / {max}
+        <span style={{ fontWeight: 'bold', color: 'var(--text-h)', fontSize: '11px' }}>
+          {current}
+          <span style={{ color: 'var(--text)', fontWeight: 'normal', fontSize: '10px' }}>
+            /{max}
           </span>
         </span>
       </div>
       <div
         style={{
-          height: '7px',
+          height: '6px',
           background: 'var(--bg)',
           borderRadius: '999px',
           overflow: 'hidden',
@@ -122,7 +122,13 @@ export default function GroupRoster({ mjId, onConnectionChange }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+        gap: '16px'
+      }}
+    >
       {players.map((char) => {
         const stats = char.liveStats || { pvCurrent: 100, pvMax: 100, pmCurrent: 50, pmMax: 50 };
         const statuses = char.statuses || [];
@@ -137,30 +143,21 @@ export default function GroupRoster({ mjId, onConnectionChange }) {
             key={char.id}
             style={{
               background: 'var(--code-bg)',
-              border: isDown ? '1px solid rgba(229, 62, 62, 0.6)' : '1px solid var(--border)',
-              borderLeft: isDown ? '4px solid #e53e3e' : '4px solid var(--accent)',
+              border: isDown ? '1px solid rgba(229, 62, 62, 0.55)' : '1px solid var(--border)',
+              borderTop: isDown ? '3px solid #e53e3e' : '3px solid var(--accent)',
               borderRadius: '12px',
-              padding: '16px 20px',
+              padding: '14px 16px',
               boxShadow: 'var(--shadow)',
               display: 'flex',
-              alignItems: 'center',
+              flexDirection: 'column',
               justifyContent: 'space-between',
-              gap: '20px',
-              flexWrap: 'wrap',
+              gap: '12px',
               opacity: isDown ? 0.78 : 1,
               transition: 'all 0.25s ease'
             }}
           >
-            {/* BLOC GAUCHE : PORTRAIT + IDENTITÉ + STATUTS */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                flex: '1 1 320px',
-                minWidth: 0
-              }}
-            >
+            {/* EN-TÊTE : PORTRAIT + IDENTITÉ + OR */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
               <img
                 src={resolveAssetUrl(char.avatarUrl)}
                 alt={char.name}
@@ -170,8 +167,8 @@ export default function GroupRoster({ mjId, onConnectionChange }) {
                   e.target.src = './assets/jdr-bag.jpg';
                 }}
                 style={{
-                  width: '66px',
-                  height: '66px',
+                  width: '58px',
+                  height: '58px',
                   borderRadius: '10px',
                   objectFit: 'cover',
                   border: '1px solid var(--accent-border)',
@@ -182,142 +179,186 @@ export default function GroupRoster({ mjId, onConnectionChange }) {
               />
 
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <h3
-                    style={{
-                      margin: 0,
-                      fontSize: '18px',
-                      color: 'var(--text-h)',
-                      lineHeight: 1.2
-                    }}
-                  >
-                    {char.name}
-                  </h3>
-
-                  {ownerUser && (
-                    <span
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap', minWidth: 0 }}>
+                    <h3
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        fontSize: '11px',
-                        color: 'var(--text)',
-                        background: 'var(--bg)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '999px',
-                        padding: '1px 8px 1px 3px'
+                        margin: 0,
+                        fontSize: '16px',
+                        color: 'var(--text-h)',
+                        lineHeight: 1.2
                       }}
                     >
-                      <img
-                        src={resolveAssetUrl(ownerUser.avatarUrl)}
-                        alt={ownerUser.username}
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = './assets/jdr-bag.jpg';
-                        }}
-                        style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                      {ownerUser.username}
-                    </span>
-                  )}
-                </div>
+                      {char.name}
+                    </h3>
 
-                <div style={{ fontSize: '13px', color: 'var(--text)', marginTop: '3px' }}>
-                  {subtitle || 'Aventurier'}
-                  {details && (
-                    <span style={{ opacity: 0.7, fontSize: '12px' }}> • {details}</span>
-                  )}
-                </div>
-
-                {/* PASTILLES STATUTS & TRAITS */}
-                {(statuses.length > 0 || traits.length > 0) && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '8px' }}>
-                    {statuses.map((st, idx) => (
+                    {ownerUser && (
                       <span
-                        key={`st-${idx}`}
                         style={{
-                          padding: '2px 8px',
-                          borderRadius: '999px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
                           fontSize: '10px',
-                          fontWeight: 'bold',
-                          color: '#fff',
-                          backgroundColor: st.color || '#718096'
+                          color: 'var(--text)',
+                          background: 'var(--bg)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '999px',
+                          padding: '1px 7px 1px 2px'
                         }}
                       >
-                        {st.label}
-                      </span>
-                    ))}
-
-                    {traits.map((tr, idx) => {
-                      const isPos = tr.type === 'positive';
-                      return (
-                        <span
-                          key={`tr-${idx}`}
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: '999px',
-                            fontSize: '10px',
-                            fontWeight: 'bold',
-                            color: '#fff',
-                            backgroundColor: isPos ? '#2e7d32' : '#c62828',
-                            border: isPos ? '1px solid #4caf50' : '1px solid #ef5350'
+                        <img
+                          src={resolveAssetUrl(ownerUser.avatarUrl)}
+                          alt={ownerUser.username}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = './assets/jdr-bag.jpg';
                           }}
-                        >
-                          {tr.label}
-                        </span>
-                      );
-                    })}
+                          style={{ width: '14px', height: '14px', borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                        {ownerUser.username}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* COMPTEUR OR COMPACT EN HAUT À DROITE */}
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'baseline',
+                      gap: '3px',
+                      padding: '2px 8px',
+                      background: 'rgba(214, 158, 46, 0.1)',
+                      border: '1px solid rgba(214, 158, 46, 0.35)',
+                      borderRadius: '6px',
+                      flexShrink: 0
+                    }}
+                  >
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#ecc94b' }}>
+                      {char.gold || 0}
+                    </span>
+                    <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#d69e2e' }}>
+                      PO
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '12px', color: 'var(--text)', marginTop: '3px' }}>
+                  {subtitle || 'Aventurier'}
+                </div>
+
+                {details && (
+                  <div style={{ fontSize: '11px', color: 'var(--text)', opacity: 0.65, marginTop: '1px' }}>
+                    {details}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* BLOC DROITE : JAUGES PV/PM COMPACTES + OR */}
+            {/* JAUGES PV / PM CÔTE À CÔTE */}
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                flex: '1 1 240px',
-                maxWidth: '320px',
-                width: '100%'
+                gap: '12px',
+                padding: '8px 10px',
+                background: 'rgba(0, 0, 0, 0.16)',
+                borderRadius: '8px',
+                border: '1px solid var(--border)'
               }}
             >
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <CompactResourceBar
-                  label="PV"
-                  current={stats.pvCurrent}
-                  max={stats.pvMax}
-                  color="#e53e3e"
-                />
-                <CompactResourceBar
-                  label="PM"
-                  current={stats.pmCurrent}
-                  max={stats.pmMax}
-                  color="#3182ce"
-                />
-              </div>
+              <CompactResourceBar
+                label="PV"
+                current={stats.pvCurrent}
+                max={stats.pvMax}
+                color="#e53e3e"
+              />
+              <CompactResourceBar
+                label="PM"
+                current={stats.pmCurrent}
+                max={stats.pmMax}
+                color="#3182ce"
+              />
+            </div>
 
+            {/* STATUTS & TRAITS FINS */}
+            {(statuses.length > 0 || traits.length > 0) && (
               <div
                 style={{
-                  padding: '6px 10px',
-                  background: 'var(--bg)',
-                  border: '1px solid rgba(214, 158, 46, 0.5)',
-                  borderRadius: '8px',
-                  textAlign: 'center',
-                  minWidth: '58px',
-                  flexShrink: 0
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: '4px',
+                  paddingTop: '2px'
                 }}
               >
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#d69e2e', lineHeight: 1.1 }}>
-                  {char.gold || 0}
-                </div>
-                <div style={{ fontSize: '9px', fontWeight: 'bold', color: 'var(--text)', marginTop: '2px' }}>
-                  PO
-                </div>
+                {statuses.map((st, idx) => {
+                  const baseColor = st.color || '#9f7aea';
+                  return (
+                    <span
+                      key={`st-${idx}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '1px 7px',
+                        borderRadius: '5px',
+                        fontSize: '10px',
+                        fontWeight: '600',
+                        lineHeight: '1.35',
+                        color: '#f7fafc',
+                        backgroundColor: `${baseColor}28`,
+                        border: `1px solid ${baseColor}88`
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: '5px',
+                          height: '5px',
+                          borderRadius: '50%',
+                          backgroundColor: baseColor,
+                          flexShrink: 0
+                        }}
+                      />
+                      {st.label}
+                    </span>
+                  );
+                })}
+
+                {traits.map((tr, idx) => {
+                  const isPos = tr.type === 'positive';
+                  return (
+                    <span
+                      key={`tr-${idx}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '1px 7px',
+                        borderRadius: '5px',
+                        fontSize: '10px',
+                        fontWeight: '500',
+                        lineHeight: '1.35',
+                        color: isPos ? '#9ae6b4' : '#feb2b2',
+                        backgroundColor: isPos
+                          ? 'rgba(72, 187, 120, 0.12)'
+                          : 'rgba(245, 101, 101, 0.12)',
+                        border: isPos
+                          ? '1px solid rgba(72, 187, 120, 0.35)'
+                          : '1px solid rgba(245, 101, 101, 0.35)'
+                      }}
+                    >
+                      {tr.label}
+                    </span>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
         );
       })}

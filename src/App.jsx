@@ -76,6 +76,13 @@ function App() {
                           Joueurs
                         </button>
                         <button
+                          onClick={() => setMainTab('group')}
+                          className={mainTab === 'group' ? 'btn-primary' : 'btn-secondary'}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
+                          Groupe
+                        </button>
+                        <button
                           onClick={() => setMainTab('items')}
                           className={mainTab === 'items' ? 'btn-primary' : 'btn-secondary'}
                           style={{ fontSize: '12px', padding: '5px 10px' }}

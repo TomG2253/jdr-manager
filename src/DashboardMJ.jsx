@@ -6,6 +6,7 @@ import CharacterCard from './CharacterCard';
 import NpcManager from './NpcManager';
 import CombatTracker from './CombatTracker';
 import { resolveAssetUrl } from './presets';
+import GroupRoster from './GroupRoster';
 
 export default function DashboardMJ({ user, activeMainTab = 'players', onSelectMainTab }) {
   const [players, setPlayers] = useState([]);
@@ -56,6 +57,12 @@ export default function DashboardMJ({ user, activeMainTab = 'players', onSelectM
           mjUid={user.uid}
           onGoToCombat={onSelectMainTab ? () => onSelectMainTab('combat') : undefined}
         />
+      )}
+
+      {activeMainTab === 'group' && (
+      <div style={{ maxWidth: '1100px', margin: '0 auto', textAlign: 'left' }}>
+      <GroupRoster mjId={user.uid} />
+      </div>
       )}
 
       {/* VUE COMBAT */}

@@ -356,16 +356,17 @@ export default function CharacterCard({ character, isEditable, isMJ = false }) {
             />
           )}
           {activeTab === 'inventory' && (
-            <InventoryManager
-              characterId={character.id}
-              mjUid={character.mjUid || character.mjId}
-              items={character.inventory || []}
-              inventoryWidth={character.inventoryWidth || 4}
-              inventoryHeight={character.inventoryHeight || 3}
-              isEditable={isEditable}
-              isMJ={isMJ}
-            />
-          )}
+  <InventoryManager
+    characterId={character.id}
+    mjUid={character.mjUid || character.mjId}
+    items={character.inventory || []}
+    heldItem={character.heldItem || null}
+    inventoryWidth={character.inventoryWidth || 4}
+    inventoryHeight={character.inventoryHeight || 3}
+    isEditable={isEditable}
+    isMJ={isMJ}
+  />
+)}
           {activeTab === 'journal' && (
             <NotesManager
               characterId={character.id}

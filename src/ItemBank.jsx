@@ -13,7 +13,7 @@ export default function ItemBank({ mjUid, players = [] }) {
 
   useEffect(() => {
     if (!mjUid) return;
-    const bankRef = doc(db, "itemBanks", mjUid);
+    const bankRef = doc(db, 'itemBanks', mjUid);
     const unsubscribe = onSnapshot(bankRef, (docSnap) => {
       if (docSnap.exists()) {
         setBankItems(docSnap.data().items || []);
@@ -26,28 +26,43 @@ export default function ItemBank({ mjUid, players = [] }) {
 
   const saveBank = async (newItems) => {
     if (!mjUid) return;
-    const bankRef = doc(db, "itemBanks", mjUid);
+    const bankRef = doc(db, 'itemBanks', mjUid);
     await setDoc(bankRef, { items: newItems }, { merge: true });
+  };
+
+  const giveItemToCharacter = async (item, player) => {
+    const charRef = doc(db, 'characters', player.id);
+
+    // 1. Priorité : déposer dans la case spéciale si elle est vide
+    if (!player.heldItem) {
+      const { slotIndex, rotation, isRotated, ...cleanHeldItem } = item;
+      await updateDoc(charRef, { heldItem: cleanHeldItem });
+      return true;
+    }
+
+    // 2. Fallback : placer dans le premier espace libre de l'inventaire principal
+    const gridW = player.inventoryWidth || 5;
+    const gridH = player.inventoryHeight || 5;
+    const currentInv = player.inventory || [];
+    const nextSlot = findFreeSlot(currentInv, gridW, gridH, item);
+
+    if (nextSlot === -1) {
+      alert(`La case spéciale et l'inventaire de ${player.name} sont pleins !`);
+      return false;
+    }
+
+    await updateDoc(charRef, {
+      inventory: [...currentInv, { ...item, slotIndex: nextSlot }]
+    });
+    return true;
   };
 
   const handleCreateItem = async (newItem, targetPlayerId) => {
     if (targetPlayerId) {
-      const player = players.find(p => p.id === targetPlayerId);
+      const player = players.find((p) => p.id === targetPlayerId);
       if (player) {
-        const gridW = player.inventoryWidth || 5;
-        const gridH = player.inventoryHeight || 5;
-        const currentInv = player.inventory || [];
-        const nextSlot = findFreeSlot(currentInv, gridW, gridH, newItem);
-
-        if (nextSlot === -1) {
-          alert("L'inventaire du joueur est trop petit ou plein pour cet objet !");
-          return;
-        }
-
-        const charRef = doc(db, "characters", player.id);
-        await updateDoc(charRef, {
-          inventory: [...currentInv, { ...newItem, slotIndex: nextSlot }]
-        });
+        const given = await giveItemToCharacter(newItem, player);
+        if (!given) return;
       }
     } else {
       await saveBank([...bankItems, newItem]);
@@ -56,37 +71,25 @@ export default function ItemBank({ mjUid, players = [] }) {
   };
 
   const handleGiveToPlayer = async (item, playerId) => {
-    const player = players.find(p => p.id === playerId);
+    const player = players.find((p) => p.id === playerId);
     if (!player) return;
 
-    const gridW = player.inventoryWidth || 5;
-    const gridH = player.inventoryHeight || 5;
-    const currentInv = player.inventory || [];
-    const nextSlot = findFreeSlot(currentInv, gridW, gridH, item);
+    const given = await giveItemToCharacter(item, player);
+    if (!given) return;
 
-    if (nextSlot === -1) {
-      alert("L'inventaire du joueur n'a pas assez d'espace libre !");
-      return;
-    }
-
-    const charRef = doc(db, "characters", player.id);
-    await updateDoc(charRef, {
-      inventory: [...currentInv, { ...item, slotIndex: nextSlot }]
-    });
-
-    const updatedBank = bankItems.filter(i => i.id !== item.id);
+    const updatedBank = bankItems.filter((i) => i.id !== item.id);
     await saveBank(updatedBank);
     setHoveredItem(null);
   };
 
   const handleSaveEdit = async (updatedItem) => {
-    const updatedBank = bankItems.map(i => i.id === updatedItem.id ? updatedItem : i);
+    const updatedBank = bankItems.map((i) => (i.id === updatedItem.id ? updatedItem : i));
     await saveBank(updatedBank);
     setEditingItem(null);
   };
 
   const handleDeleteFromBank = async (itemId) => {
-    const updatedBank = bankItems.filter(i => i.id !== itemId);
+    const updatedBank = bankItems.filter((i) => i.id !== itemId);
     await saveBank(updatedBank);
     setHoveredItem(null);
   };
@@ -132,7 +135,7 @@ export default function ItemBank({ mjUid, players = [] }) {
         <p style={{ color: 'var(--text)', fontStyle: 'italic', fontSize: '14px', margin: 0 }}>La banque d'objets est vide.</p>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start' }}>
-          {bankItems.map(item => (
+          {bankItems.map((item) => (
             <div
               key={item.id}
               style={{
@@ -181,12 +184,14 @@ export default function ItemBank({ mjUid, players = [] }) {
               <div style={{ display: 'flex', gap: '4px', alignItems: 'center', width: '100%' }}>
                 {players.length > 0 && (
                   <select
-                    onChange={(e) => { if (e.target.value) handleGiveToPlayer(item, e.target.value); }}
+                    onChange={(e) => {
+                      if (e.target.value) handleGiveToPlayer(item, e.target.value);
+                    }}
                     defaultValue=""
                     style={{ flex: 1, fontSize: '10px', padding: '2px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--code-bg)', color: 'var(--text-h)', cursor: 'pointer', maxWidth: '80px' }}
                   >
                     <option value="" disabled>Donner...</option>
-                    {players.map(p => (
+                    {players.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
@@ -215,20 +220,22 @@ export default function ItemBank({ mjUid, players = [] }) {
       )}
 
       {hoveredItem && (
-        <div style={{
-          position: 'fixed',
-          top: tooltipPos.y,
-          left: tooltipPos.x,
-          zIndex: 1000,
-          pointerEvents: 'none',
-          padding: '10px 14px',
-          background: 'rgba(20, 20, 25, 0.95)',
-          border: '1px solid var(--accent)',
-          borderRadius: '6px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-          maxWidth: '220px',
-          backdropFilter: 'blur(4px)'
-        }}>
+        <div
+          style={{
+            position: 'fixed',
+            top: tooltipPos.y,
+            left: tooltipPos.x,
+            zIndex: 1000,
+            pointerEvents: 'none',
+            padding: '10px 14px',
+            background: 'rgba(20, 20, 25, 0.95)',
+            border: '1px solid var(--accent)',
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            maxWidth: '220px',
+            backdropFilter: 'blur(4px)'
+          }}
+        >
           <strong style={{ color: 'var(--accent)', display: 'block', fontSize: '14px', marginBottom: '2px' }}>
             {hoveredItem.name}
           </strong>
@@ -262,9 +269,16 @@ function getItemActiveOffsets(item) {
       if (rawShape[r * w + c] === 1) {
         let rx = c;
         let ry = r;
-        if (rot === 1) { rx = -r; ry = c; }
-        else if (rot === 2) { rx = -c; ry = -r; }
-        else if (rot === 3) { rx = r; ry = -c; }
+        if (rot === 1) {
+          rx = -r;
+          ry = c;
+        } else if (rot === 2) {
+          rx = -c;
+          ry = -r;
+        } else if (rot === 3) {
+          rx = r;
+          ry = -c;
+        }
         offsets.push({ rx, ry });
       }
     }
@@ -274,7 +288,7 @@ function getItemActiveOffsets(item) {
 
 function findFreeSlot(inventory, gridW, gridH, newItem) {
   const occupied = new Set();
-  inventory.forEach(item => {
+  inventory.forEach((item) => {
     const startSlot = item.slotIndex ?? 0;
     const oX = startSlot % gridW;
     const oY = Math.floor(startSlot / gridW);

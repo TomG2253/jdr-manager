@@ -21,7 +21,7 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
         if (userDoc.exists()) {
           setUserRole(userDoc.data().role);
         } else {
@@ -69,22 +69,30 @@ function App() {
                       <nav style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         <button
                           onClick={() => setMainTab('players')}
-                          className={mainTab === 'players' ? "btn-primary" : "btn-secondary"}
+                          className={mainTab === 'players' ? 'btn-primary' : 'btn-secondary'}
                           style={{ fontSize: '12px', padding: '5px 10px' }}
                         >
                           Joueurs
                         </button>
                         <button
                           onClick={() => setMainTab('items')}
-                          className={mainTab === 'items' ? "btn-primary" : "btn-secondary"}
+                          className={mainTab === 'items' ? 'btn-primary' : 'btn-secondary'}
                           style={{ fontSize: '12px', padding: '5px 10px' }}
                         >
                           Objets
                         </button>
-                        <button disabled className="btn-secondary" style={{ fontSize: '12px', padding: '5px 10px', opacity: 0.45 }} title="Bientôt disponible">
+                        <button
+                          onClick={() => setMainTab('npcs')}
+                          className={mainTab === 'npcs' ? 'btn-primary' : 'btn-secondary'}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
                           PNJ
                         </button>
-                        <button disabled className="btn-secondary" style={{ fontSize: '12px', padding: '5px 10px', opacity: 0.45 }} title="Bientôt disponible">
+                        <button
+                          onClick={() => setMainTab('combat')}
+                          className={mainTab === 'combat' ? 'btn-primary' : 'btn-secondary'}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
                           Combat
                         </button>
                         <button disabled className="btn-secondary" style={{ fontSize: '12px', padding: '5px 10px', opacity: 0.45 }} title="Bientôt disponible">
@@ -101,7 +109,7 @@ function App() {
 
                 <main className="app-main">
                   {userRole === 'mj' ? (
-                    <DashboardMJ user={user} activeMainTab={mainTab} />
+                    <DashboardMJ user={user} activeMainTab={mainTab} onSelectMainTab={setMainTab} />
                   ) : (
                     <DashboardPlayer user={user} />
                   )}

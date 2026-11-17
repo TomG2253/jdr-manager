@@ -3,9 +3,11 @@ import { collection, onSnapshot, query, where, doc, getDoc } from 'firebase/fire
 import { db } from './firebase';
 import ItemBank from './ItemBank';
 import CharacterCard from './CharacterCard';
+import NpcManager from './NpcManager';
+import CombatTracker from './CombatTracker';
 import { resolveAssetUrl } from './presets';
 
-export default function DashboardMJ({ user, activeMainTab = 'players' }) {
+export default function DashboardMJ({ user, activeMainTab = 'players', onSelectMainTab }) {
   const [players, setPlayers] = useState([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [campaignName, setCampaignName] = useState('');
@@ -15,23 +17,23 @@ export default function DashboardMJ({ user, activeMainTab = 'players' }) {
   useEffect(() => {
     if (!user?.uid) return;
 
-    getDoc(doc(db, "campaigns", user.uid)).then((snap) => {
+    getDoc(doc(db, 'campaigns', user.uid)).then((snap) => {
       if (snap.exists()) {
         setCampaignName(snap.data().name || '');
         setSpectatorCode(snap.data().spectatorCode || '');
       }
     });
 
-    const q = query(collection(db, "characters"), where("mjUid", "==", user.uid));
+    const q = query(collection(db, 'characters'), where('mjUid', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const chars = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const chars = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       setPlayers(chars);
     });
     return () => unsubscribe();
   }, [user]);
 
   const handleTogglePlayer = (id) => {
-    setSelectedPlayerId(prev => prev === id ? null : id);
+    setSelectedPlayerId((prev) => (prev === id ? null : id));
   };
 
   const handleCopySpectatorCode = () => {
@@ -41,19 +43,37 @@ export default function DashboardMJ({ user, activeMainTab = 'players' }) {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  const selectedPlayer = players.find(p => p.id === selectedPlayerId);
+  const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
 
   return (
     <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
       {/* VUE BANQUE D'OBJETS */}
-      {activeMainTab === 'items' && (
-        <ItemBank mjUid={user.uid} players={players} />
+      {activeMainTab === 'items' && <ItemBank mjUid={user.uid} players={players} />}
+
+      {/* VUE PNJ */}
+      {activeMainTab === 'npcs' && (
+        <NpcManager
+          mjUid={user.uid}
+          onGoToCombat={onSelectMainTab ? () => onSelectMainTab('combat') : undefined}
+        />
       )}
+
+      {/* VUE COMBAT */}
+      {activeMainTab === 'combat' && <CombatTracker mjUid={user.uid} players={players} />}
 
       {/* VUE JOUEURS */}
       {activeMainTab === 'players' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}
+          >
             <div>
               <h3 style={{ margin: 0, color: 'var(--text-h)', fontSize: '20px' }}>
                 {campaignName || 'Fiches des Joueurs'}
@@ -90,7 +110,7 @@ export default function DashboardMJ({ user, activeMainTab = 'players' }) {
                   <div
                     key={player.id}
                     onClick={() => handleTogglePlayer(player.id)}
-                    title={isSelected ? "Cliquer pour fermer la fiche" : "Cliquer pour afficher la fiche"}
+                    title={isSelected ? 'Cliquer pour fermer la fiche' : 'Cliquer pour afficher la fiche'}
                     style={{
                       display: 'flex',
                       alignItems: 'center',

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import ImageInput from './ImageInput';
+import ItemImagePicker from './ItemImagePicker';
 import { ITEM_PRESETS } from './presets';
 
 export function createDefaultShape(w, h) {
@@ -59,7 +59,6 @@ export default function ItemForm({
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
-
     const finalIconUrl = formData.iconUrl.trim() || ITEM_PRESETS[0]?.url || './assets/jdr-bag.jpg';
     const itemPayload = {
       ...(initialItem || {}),
@@ -74,7 +73,6 @@ export default function ItemForm({
       isRotated: initialItem?.isRotated ?? false,
       effect: formData.effect.trim()
     };
-
     onSubmit(itemPayload, targetPlayerId);
   };
 
@@ -105,7 +103,6 @@ export default function ItemForm({
           onChange={e => setFormData({ ...formData, name: e.target.value })}
           style={{ flex: 2, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }}
         />
-
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', color: 'var(--text)' }}>Taille (L x H) :</span>
           <input
@@ -159,33 +156,11 @@ export default function ItemForm({
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <select
-          value={ITEM_PRESETS.some(p => p.url === formData.iconUrl) ? formData.iconUrl : ''}
-          onChange={e => setFormData({ ...formData, iconUrl: e.target.value })}
-          style={{
-            flex: 1,
-            padding: '8px',
-            borderRadius: '4px',
-            border: '1px solid var(--border)',
-            background: 'var(--code-bg)',
-            color: 'var(--text-h)'
-          }}
-        >
-          <option value="">-- Icônes par défaut --</option>
-          {ITEM_PRESETS.map(p => (
-            <option key={p.id} value={p.url}>{p.label}</option>
-          ))}
-        </select>
-
-        <div style={{ flex: 2, minWidth: '220px' }}>
-          <ImageInput
-            value={formData.iconUrl}
-            onChange={url => setFormData({ ...formData, iconUrl: url })}
-            placeholder="URL ou importer une image..."
-          />
-        </div>
-      </div>
+      {/* Choix de l'illustration : Images Assets / Scryfall / Manuel */}
+      <ItemImagePicker
+        value={formData.iconUrl}
+        onChange={url => setFormData({ ...formData, iconUrl: url })}
+      />
 
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
         <input
@@ -195,7 +170,6 @@ export default function ItemForm({
           onChange={e => setFormData({ ...formData, effect: e.target.value })}
           style={{ flex: 2, padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }}
         />
-
         {allowDirectGive && (
           <select
             value={targetPlayerId}

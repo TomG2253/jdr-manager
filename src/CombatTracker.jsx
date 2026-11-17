@@ -3,23 +3,27 @@ import { doc, onSnapshot, setDoc, collection, query, where } from 'firebase/fire
 import { db } from './firebase';
 import { resolveAssetUrl } from './presets';
 
-export default function CombatTracker({ mjUid, players = [] }) {
+export default function CombatTracker({ mjUid, players = [], readOnly = false }) {
   const [participants, setParticipants] = useState([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [round, setRound] = useState(1);
   const [npcBank, setNpcBank] = useState([]);
 
+  // Pas cumulé pour que la roue tourne toujours par le chemin le plus court
+  const [wheelStep, setWheelStep] = useState(0);
+  const prevWheelRef = useRef({ index: 0, count: 0 });
+
   // Synchronisation live des PV/PM des PJ pour leurs jauges ultra-fines
   const [liveCharsMap, setLiveCharsMap] = useState({});
 
-  // Modales d'ajout rapide
+  // Modales d'ajout rapide (mode MJ uniquement)
   const [showAddPjModal, setShowAddPjModal] = useState(false);
   const [showAddNpcModal, setShowAddNpcModal] = useState(false);
   const [selectedNpcId, setSelectedNpcId] = useState('');
   const [npcAlign, setNpcAlign] = useState('');
   const [npcQty, setNpcQty] = useState(1);
 
-  // Drag & Drop réorganisation
+  // Drag & Drop réorganisation (mode MJ uniquement)
   const [dragIdx, setDragIdx] = useState(null);
 
   // Mesure responsive pour le quinconce sur 2 lignes + tracé du trait SVG actif
@@ -40,16 +44,19 @@ export default function CombatTracker({ mjUid, players = [] }) {
         const safeIdx = list.length > 0 ? Math.min(data.activeIndex || 0, list.length - 1) : 0;
         setActiveIndex(safeIdx);
         setRound(data.round || 1);
-      } else {
+      } else if (!readOnly) {
         setDoc(doc(db, 'combats', mjUid), { participants: [], activeIndex: 0, round: 1 });
       }
     });
 
-    const unsubNpcs = onSnapshot(doc(db, 'npcBanks', mjUid), (snap) => {
-      if (snap.exists()) {
-        setNpcBank(snap.data().npcs || []);
-      }
-    });
+    let unsubNpcs = () => {};
+    if (!readOnly) {
+      unsubNpcs = onSnapshot(doc(db, 'npcBanks', mjUid), (snap) => {
+        if (snap.exists()) {
+          setNpcBank(snap.data().npcs || []);
+        }
+      });
+    }
 
     const qChars = query(collection(db, 'characters'), where('mjUid', '==', mjUid));
     const unsubChars = onSnapshot(qChars, (snap) => {
@@ -65,10 +72,35 @@ export default function CombatTracker({ mjUid, players = [] }) {
       unsubNpcs();
       unsubChars();
     };
-  }, [mjUid]);
+  }, [mjUid, readOnly]);
+
+  // Synchronisation de la rotation cumulée de la roue avec activeIndex
+  useEffect(() => {
+    const n = participants.length;
+    if (n === 0) {
+      prevWheelRef.current = { index: 0, count: 0 };
+      setWheelStep(0);
+      return;
+    }
+
+    const { index: prevIdx, count: prevCount } = prevWheelRef.current;
+    if (prevCount !== n) {
+      prevWheelRef.current = { index: activeIndex, count: n };
+      setWheelStep(activeIndex);
+      return;
+    }
+
+    if (prevIdx !== activeIndex) {
+      let delta = activeIndex - prevIdx;
+      if (delta > n / 2) delta -= n;
+      if (delta < -n / 2) delta += n;
+      prevWheelRef.current = { index: activeIndex, count: n };
+      setWheelStep((prev) => prev + delta);
+    }
+  }, [activeIndex, participants.length]);
 
   const saveCombatState = async (nextParticipants, nextActiveIndex, nextRound) => {
-    if (!mjUid) return;
+    if (!mjUid || readOnly) return;
     await setDoc(
       doc(db, 'combats', mjUid),
       {
@@ -82,7 +114,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
 
   // --- CONTRÔLES DE TOUR ---
   const handleNextTurn = () => {
-    if (participants.length === 0) return;
+    if (readOnly || participants.length === 0) return;
     const nextIdx = (activeIndex + 1) % participants.length;
     const nextRound = nextIdx === 0 ? round + 1 : round;
     setActiveIndex(nextIdx);
@@ -91,7 +123,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
   };
 
   const handlePrevTurn = () => {
-    if (participants.length === 0) return;
+    if (readOnly || participants.length === 0) return;
     const prevIdx = (activeIndex - 1 + participants.length) % participants.length;
     const prevRound = activeIndex === 0 && round > 1 ? round - 1 : round;
     setActiveIndex(prevIdx);
@@ -100,6 +132,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
   };
 
   const handleClearCombat = () => {
+    if (readOnly) return;
     setParticipants([]);
     setActiveIndex(0);
     setRound(1);
@@ -108,7 +141,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
 
   // --- PERMUTATION / RÉORGANISATION DYNAMIQUE ---
   const moveParticipant = (fromIdx, toIdx) => {
-    if (toIdx < 0 || toIdx >= participants.length || fromIdx === toIdx) return;
+    if (readOnly || toIdx < 0 || toIdx >= participants.length || fromIdx === toIdx) return;
     const activeId = participants[activeIndex]?.id;
     const updated = [...participants];
     const [moved] = updated.splice(fromIdx, 1);
@@ -120,6 +153,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
   };
 
   const handleRemoveParticipant = (idx) => {
+    if (readOnly) return;
     const activeId = participants[activeIndex]?.id;
     const updated = participants.filter((_, i) => i !== idx);
     let newActiveIdx = 0;
@@ -134,6 +168,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
 
   // --- AJOUT DE PJ / PNJ ---
   const handleAddSinglePj = (player) => {
+    if (readOnly) return;
     const entry = {
       id: crypto.randomUUID(),
       type: 'pj',
@@ -147,6 +182,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
   };
 
   const handleAddAllPjs = () => {
+    if (readOnly) return;
     const existingCharIds = new Set(participants.filter((p) => p.type === 'pj').map((p) => p.characterId));
     const toAdd = players
       .filter((pl) => !existingCharIds.has(pl.id))
@@ -166,6 +202,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
 
   const handleAddNpcSubmit = (e) => {
     e.preventDefault();
+    if (readOnly) return;
     const model = npcBank.find((n) => n.id === selectedNpcId);
     if (!model || !npcAlign) return;
     const count = Math.max(1, Math.min(20, parseInt(npcQty, 10) || 1));
@@ -239,6 +276,12 @@ export default function CombatTracker({ mjUid, players = [] }) {
     const isActive = idx === activeIndex;
     const isEnemy = p.alignment === 'enemy';
     const frameColor = isEnemy ? '#e53e3e' : '#3182ce';
+    const inactiveTint = isEnemy
+      ? 'linear-gradient(180deg, rgba(229, 62, 62, 0.14) 0%, var(--bg) 100%)'
+      : 'linear-gradient(180deg, rgba(49, 130, 206, 0.14) 0%, var(--bg) 100%)';
+    const activeTint = isEnemy
+      ? 'linear-gradient(180deg, rgba(229, 62, 62, 0.22) 0%, var(--bg) 100%)'
+      : 'linear-gradient(180deg, rgba(49, 130, 206, 0.22) 0%, var(--bg) 100%)';
 
     // Données live pour les PJ uniquement (pas de jauge pour les PNJ)
     const liveChar = p.type === 'pj' ? liveCharsMap[p.characterId] : null;
@@ -252,37 +295,47 @@ export default function CombatTracker({ mjUid, players = [] }) {
       <div
         key={p.id}
         ref={isActive ? activeCardRef : null}
-        draggable
-        onDragStart={() => setDragIdx(idx)}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={() => {
-          if (dragIdx !== null) moveParticipant(dragIdx, idx);
-          setDragIdx(null);
-        }}
-        onClick={() => {
-          setActiveIndex(idx);
-          saveCombatState(participants, idx, round);
-        }}
-        title="Cliquer pour activer le tour | Glisser pour réordonner"
+        draggable={!readOnly}
+        onDragStart={!readOnly ? () => setDragIdx(idx) : undefined}
+        onDragOver={!readOnly ? (e) => e.preventDefault() : undefined}
+        onDrop={
+          !readOnly
+            ? () => {
+                if (dragIdx !== null) moveParticipant(dragIdx, idx);
+                setDragIdx(null);
+              }
+            : undefined
+        }
+        onClick={
+          !readOnly
+            ? () => {
+                setActiveIndex(idx);
+                saveCombatState(participants, idx, round);
+              }
+            : undefined
+        }
+        title={!readOnly ? 'Cliquer pour activer le tour | Glisser pour réordonner' : undefined}
         style={{
           width: `${cardWidth}px`,
-          background: 'var(--bg)',
+          background: isActive ? activeTint : inactiveTint,
           border: `2px solid ${frameColor}`,
           borderRadius: '10px',
           padding: '6px',
           boxSizing: 'border-box',
-          cursor: 'grab',
+          cursor: readOnly ? 'default' : 'grab',
           userSelect: 'none',
           position: 'relative',
           zIndex: isActive ? 5 : 2,
-          filter: isActive ? 'none' : 'grayscale(100%)',
-          opacity: isActive ? 1 : 0.45,
-          transform: isActive ? 'translateY(-3px) scale(1.03)' : 'none',
-          boxShadow: isActive ? `0 0 14px ${isEnemy ? 'rgba(229,62,62,0.55)' : 'rgba(49,130,206,0.55)'}` : 'none',
-          transition: 'all 0.22s ease'
+          filter: isActive ? 'none' : 'grayscale(55%) brightness(0.84)',
+          opacity: isActive ? 1 : 0.78,
+          transform: isActive ? 'translateY(-4px) scale(1.04)' : 'scale(0.98)',
+          boxShadow: isActive
+            ? `0 0 16px ${isEnemy ? 'rgba(229,62,62,0.6)' : 'rgba(49,130,206,0.6)'}`
+            : 'none',
+          transition: 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), filter 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease'
         }}
       >
-        {/* NUMÉRO D'ORDRE + SUPPRESSION DISCRÈTE */}
+        {/* NUMÉRO D'ORDRE + CONTROLES MJ */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
           <span
             style={{
@@ -297,60 +350,62 @@ export default function CombatTracker({ mjUid, players = [] }) {
             #{idx + 1}
           </span>
 
-          <div style={{ display: 'flex', gap: '2px' }} onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => moveParticipant(idx, idx - 1)}
-              disabled={idx === 0}
-              title="Avancer dans l'ordre"
-              style={{
-                background: 'var(--code-bg)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-h)',
-                borderRadius: '3px',
-                fontSize: '9px',
-                padding: '0 4px',
-                cursor: idx === 0 ? 'default' : 'pointer',
-                opacity: idx === 0 ? 0.35 : 1
-              }}
-            >
-              &#9664;
-            </button>
-            <button
-              type="button"
-              onClick={() => moveParticipant(idx, idx + 1)}
-              disabled={idx === participants.length - 1}
-              title="Reculer dans l'ordre"
-              style={{
-                background: 'var(--code-bg)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-h)',
-                borderRadius: '3px',
-                fontSize: '9px',
-                padding: '0 4px',
-                cursor: idx === participants.length - 1 ? 'default' : 'pointer',
-                opacity: idx === participants.length - 1 ? 0.35 : 1
-              }}
-            >
-              &#9654;
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRemoveParticipant(idx)}
-              title="Retirer du combat"
-              style={{
-                background: 'rgba(229,62,62,0.85)',
-                border: 'none',
-                color: '#fff',
-                borderRadius: '3px',
-                fontSize: '9px',
-                padding: '0 4px',
-                cursor: 'pointer'
-              }}
-            >
-              X
-            </button>
-          </div>
+          {!readOnly && (
+            <div style={{ display: 'flex', gap: '2px' }} onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => moveParticipant(idx, idx - 1)}
+                disabled={idx === 0}
+                title="Avancer dans l'ordre"
+                style={{
+                  background: 'var(--code-bg)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-h)',
+                  borderRadius: '3px',
+                  fontSize: '9px',
+                  padding: '0 4px',
+                  cursor: idx === 0 ? 'default' : 'pointer',
+                  opacity: idx === 0 ? 0.35 : 1
+                }}
+              >
+                &#9664;
+              </button>
+              <button
+                type="button"
+                onClick={() => moveParticipant(idx, idx + 1)}
+                disabled={idx === participants.length - 1}
+                title="Reculer dans l'ordre"
+                style={{
+                  background: 'var(--code-bg)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-h)',
+                  borderRadius: '3px',
+                  fontSize: '9px',
+                  padding: '0 4px',
+                  cursor: idx === participants.length - 1 ? 'default' : 'pointer',
+                  opacity: idx === participants.length - 1 ? 0.35 : 1
+                }}
+              >
+                &#9654;
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRemoveParticipant(idx)}
+                title="Retirer du combat"
+                style={{
+                  background: 'rgba(229,62,62,0.85)',
+                  border: 'none',
+                  color: '#fff',
+                  borderRadius: '3px',
+                  fontSize: '9px',
+                  padding: '0 4px',
+                  cursor: 'pointer'
+                }}
+              >
+                X
+              </button>
+            </div>
+          )}
         </div>
 
         {/* IMAGE */}
@@ -416,6 +471,8 @@ export default function CombatTracker({ mjUid, players = [] }) {
   const cx = 160;
   const cy = 148;
   const stepAngle = count > 0 ? 360 / count : 360;
+  const wheelRotation = -wheelStep * stepAngle;
+  const wheelTransition = 'transform 0.55s cubic-bezier(0.22, 1, 0.36, 1)';
 
   const polarToCartesian = (centerX, centerY, r, angleDeg) => {
     const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -443,46 +500,48 @@ export default function CombatTracker({ mjUid, players = [] }) {
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: readOnly ? 'center' : 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '10px',
-          padding: '12px 16px',
+          padding: '10px 16px',
           background: 'var(--code-bg)',
           border: '1px solid var(--border)',
           borderRadius: '10px'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setShowAddPjModal(true)}
-            className="btn-secondary"
-            style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#3182ce', color: '#63b3ed' }}
-          >
-            + PJ
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedNpcId(npcBank[0]?.id || '');
-              setNpcAlign(npcBank[0]?.defaultAlignment || '');
-              setNpcQty(1);
-              setShowAddNpcModal(true);
-            }}
-            className="btn-secondary"
-            style={{ fontSize: '12px', padding: '6px 12px' }}
-          >
-            + PNJ
-          </button>
-        </div>
+        {!readOnly && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setShowAddPjModal(true)}
+              className="btn-secondary"
+              style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#3182ce', color: '#63b3ed' }}
+            >
+              + PJ
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedNpcId(npcBank[0]?.id || '');
+                setNpcAlign(npcBank[0]?.defaultAlignment || '');
+                setNpcQty(1);
+                setShowAddNpcModal(true);
+              }}
+              className="btn-secondary"
+              style={{ fontSize: '12px', padding: '6px 12px' }}
+            >
+              + PNJ
+            </button>
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span
             style={{
               fontSize: '12px',
               fontWeight: 'bold',
-              padding: '4px 10px',
+              padding: '4px 12px',
               borderRadius: '14px',
               background: 'var(--bg)',
               border: '1px solid var(--border)',
@@ -492,42 +551,46 @@ export default function CombatTracker({ mjUid, players = [] }) {
             Round {round}
           </span>
 
-          <button
-            type="button"
-            onClick={handlePrevTurn}
-            disabled={count === 0}
-            className="btn-secondary"
-            style={{ fontSize: '12px', padding: '6px 10px' }}
-          >
-            Précédent
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrevTurn}
+                disabled={count === 0}
+                className="btn-secondary"
+                style={{ fontSize: '12px', padding: '6px 10px' }}
+              >
+                Précédent
+              </button>
 
-          <button
-            type="button"
-            onClick={handleNextTurn}
-            disabled={count === 0}
-            className="btn-primary"
-            style={{ fontSize: '12px', padding: '6px 14px' }}
-          >
-            Tour suivant
-          </button>
+              <button
+                type="button"
+                onClick={handleNextTurn}
+                disabled={count === 0}
+                className="btn-primary"
+                style={{ fontSize: '12px', padding: '6px 14px' }}
+              >
+                Tour suivant
+              </button>
 
-          {count > 0 && (
-            <button
-              type="button"
-              onClick={handleClearCombat}
-              style={{
-                background: 'none',
-                border: '1px solid rgba(229,62,62,0.5)',
-                color: '#fc8181',
-                borderRadius: '6px',
-                padding: '6px 10px',
-                fontSize: '12px',
-                cursor: 'pointer'
-              }}
-            >
-              Vider
-            </button>
+              {count > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearCombat}
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(229,62,62,0.5)',
+                    color: '#fc8181',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Vider
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -567,6 +630,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
               stroke={activeColor}
               strokeWidth="2.5"
               strokeLinecap="round"
+              style={{ transition: 'stroke 0.3s ease' }}
             />
             <circle cx={connectorLine.x1} cy={connectorLine.y1} r="4" fill={activeColor} />
             <circle cx={connectorLine.x2} cy={connectorLine.y2} r="4.5" fill={activeColor} />
@@ -576,7 +640,9 @@ export default function CombatTracker({ mjUid, players = [] }) {
         {/* ZONE DES CARTES (1 LIGNE OU QUINCONCE SUR 2 LIGNES SI DÉPASSEMENT) */}
         {count === 0 ? (
           <div style={{ textAlign: 'center', padding: '56px 16px', color: 'var(--text)', fontSize: '14px' }}>
-            Aucun combattant en lice. Ajoutez des PJ ou des PNJ pour démarrer le combat.
+            {readOnly
+              ? 'Aucun combat en cours.'
+              : 'Aucun combattant en lice. Ajoutez des PJ ou des PNJ pour démarrer le combat.'}
           </div>
         ) : !isStaggered ? (
           <div
@@ -656,48 +722,64 @@ export default function CombatTracker({ mjUid, players = [] }) {
               strokeWidth="1.5"
             />
 
-            {/* Cases dynamiques selon le nombre de combattants */}
-            {count > 0 &&
-              participants.map((p, idx) => {
-                // Décalage angulaire pour placer la case active (idx === activeIndex) pile au sommet (0 deg)
-                const relIdx = idx - activeIndex;
-                const centerAngle = relIdx * stepAngle;
-                const startAngle = centerAngle - stepAngle / 2;
-                const endAngle = centerAngle + stepAngle / 2;
-                const isSlotActive = idx === activeIndex;
-                const slotColor = p.alignment === 'enemy' ? '#e53e3e' : '#3182ce';
-                const labelPos = polarToCartesian(cx, cy, (wheelRadius + wheelInnerRadius) / 2, centerAngle);
+            {/* Rotor animé contenant tous les quartiers */}
+            <g
+              style={{
+                transform: `rotate(${wheelRotation}deg)`,
+                transformOrigin: `${cx}px ${cy}px`,
+                transition: wheelTransition
+              }}
+            >
+              {count > 0 &&
+                participants.map((p, idx) => {
+                  const centerAngle = idx * stepAngle;
+                  const startAngle = centerAngle - stepAngle / 2;
+                  const endAngle = centerAngle + stepAngle / 2;
+                  const isSlotActive = idx === activeIndex;
+                  const slotColor = p.alignment === 'enemy' ? '#e53e3e' : '#3182ce';
+                  const labelPos = polarToCartesian(cx, cy, (wheelRadius + wheelInnerRadius) / 2, centerAngle);
 
-                return (
-                  <g
-                    key={p.id}
-                    onClick={() => {
-                      setActiveIndex(idx);
-                      saveCombatState(participants, idx, round);
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <path
-                      d={buildWedgePath(startAngle, endAngle)}
-                      fill={isSlotActive ? slotColor : 'var(--code-bg)'}
-                      fillOpacity={isSlotActive ? 0.35 : 0.9}
-                      stroke={isSlotActive ? slotColor : 'var(--border)'}
-                      strokeWidth={isSlotActive ? '2' : '1'}
-                    />
-                    <text
-                      x={labelPos.x}
-                      y={labelPos.y}
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      fill={isSlotActive ? '#fff' : 'var(--text)'}
-                      fontSize="11"
-                      fontWeight="bold"
+                  return (
+                    <g
+                      key={p.id}
+                      onClick={
+                        !readOnly
+                          ? () => {
+                              setActiveIndex(idx);
+                              saveCombatState(participants, idx, round);
+                            }
+                          : undefined
+                      }
+                      style={{ cursor: readOnly ? 'default' : 'pointer' }}
                     >
-                      {idx + 1}
-                    </text>
-                  </g>
-                );
-              })}
+                      <path
+                        d={buildWedgePath(startAngle, endAngle)}
+                        fill={isSlotActive ? slotColor : 'var(--code-bg)'}
+                        fillOpacity={isSlotActive ? 0.38 : 0.92}
+                        stroke={isSlotActive ? slotColor : 'var(--border)'}
+                        strokeWidth={isSlotActive ? '2' : '1'}
+                        style={{ transition: 'fill 0.3s ease, fill-opacity 0.3s ease, stroke 0.3s ease' }}
+                      />
+                      <text
+                        x={labelPos.x}
+                        y={labelPos.y}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fill={isSlotActive ? '#fff' : slotColor}
+                        fontSize="11"
+                        fontWeight="bold"
+                        style={{
+                          transform: `rotate(${-wheelRotation}deg)`,
+                          transformOrigin: `${labelPos.x}px ${labelPos.y}px`,
+                          transition: `${wheelTransition}, fill 0.3s ease`
+                        }}
+                      >
+                        {idx + 1}
+                      </text>
+                    </g>
+                  );
+                })}
+            </g>
 
             {/* Moyeu central */}
             <circle
@@ -707,6 +789,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
               fill="var(--code-bg)"
               stroke={activeColor}
               strokeWidth="2"
+              style={{ transition: 'stroke 0.3s ease' }}
             />
 
             <text
@@ -735,8 +818,8 @@ export default function CombatTracker({ mjUid, players = [] }) {
         </div>
       </div>
 
-      {/* MODALE : AJOUTER DES PJ */}
-      {showAddPjModal && (
+      {/* MODALES MJ UNIQUEMENT */}
+      {!readOnly && showAddPjModal && (
         <div
           style={{
             position: 'fixed',
@@ -825,8 +908,7 @@ export default function CombatTracker({ mjUid, players = [] }) {
         </div>
       )}
 
-      {/* MODALE : AJOUTER UN PNJ (CHOIX ALLIÉ / ADVERSAIRE OBLIGATOIRE) */}
-      {showAddNpcModal && (
+      {!readOnly && showAddNpcModal && (
         <div
           style={{
             position: 'fixed',

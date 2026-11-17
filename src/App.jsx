@@ -16,6 +16,7 @@ function App() {
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mainTab, setMainTab] = useState('players');
+  const [playerTab, setPlayerTab] = useState('player');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -65,7 +66,7 @@ function App() {
                       </h2>
                     </div>
 
-                    {userRole === 'mj' && (
+                    {userRole === 'mj' ? (
                       <nav style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         <button
                           onClick={() => setMainTab('players')}
@@ -99,6 +100,30 @@ function App() {
                           Map
                         </button>
                       </nav>
+                    ) : (
+                      <nav style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => setPlayerTab('player')}
+                          className={playerTab === 'player' ? 'btn-primary' : 'btn-secondary'}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
+                          Joueur
+                        </button>
+                        <button
+                          onClick={() => setPlayerTab('group')}
+                          className={playerTab === 'group' ? 'btn-primary' : 'btn-secondary'}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
+                          Groupe
+                        </button>
+                        <button
+                          onClick={() => setPlayerTab('combat')}
+                          className={playerTab === 'combat' ? 'btn-primary' : 'btn-secondary'}
+                          style={{ fontSize: '12px', padding: '5px 10px' }}
+                        >
+                          Combat
+                        </button>
+                      </nav>
                     )}
                   </div>
 
@@ -111,7 +136,11 @@ function App() {
                   {userRole === 'mj' ? (
                     <DashboardMJ user={user} activeMainTab={mainTab} onSelectMainTab={setMainTab} />
                   ) : (
-                    <DashboardPlayer user={user} />
+                    <DashboardPlayer
+                      user={user}
+                      activePlayerTab={playerTab}
+                      onSelectPlayerTab={setPlayerTab}
+                    />
                   )}
                 </main>
               </div>
